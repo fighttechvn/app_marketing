@@ -1,0 +1,28 @@
+---
+// Interactive API reference rendered with Scalar from /openapi.yaml.
+// Standalone page (outside the Starlight docs layout) so the Scalar app gets the
+// full viewport. Linked from the sidebar as "API reference (interactive)".
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>API reference · App Preview</title>
+    <style>
+      body { margin: 0; }
+      .back { position: fixed; top: 12px; left: 12px; z-index: 10; font: 14px system-ui;
+        background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 6px 12px;
+        text-decoration: none; color: #333; }
+    </style>
+  </head>
+  <body>
+    <a class="back" href={base + '/'}>← Docs</a>
+    <script
+      id="api-reference"
+      data-url={base + '/openapi.yaml'}></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>

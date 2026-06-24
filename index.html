@@ -60,6 +60,13 @@
   .gallery::-webkit-scrollbar{height:8px}.gallery::-webkit-scrollbar-thumb{background:#d2d2d7;border-radius:8px}
   .gallery img{height:560px;border-radius:24px;scroll-snap-align:start;box-shadow:0 6px 20px rgba(0,0,0,.10);flex:0 0 auto}
   .gallery.tab img{height:520px}
+  .sync-banner{margin:0 0 20px;padding:13px 18px;border-radius:12px;border:1px dashed var(--muted,#86868b);
+    background:rgba(0,122,255,.07);color:var(--muted,#515154);font-size:14px}
+  .sync-banner b{color:var(--text,#1d1d1f)}
+  .shot.empty{width:258px;height:560px;border-radius:24px;background:repeating-linear-gradient(135deg,#f5f5f7,#f5f5f7 12px,#efeff1 12px,#efeff1 24px);
+    border:1.5px dashed #c7c7cc;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .gallery.tab .shot.empty{width:380px;height:520px}
+  .shot.empty .ph{color:#9a9aa0;font-size:14px;font-weight:500}
   .subtabs{display:flex;gap:8px;margin:-4px 0 16px}
   .subtabs button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 15px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
   .subtabs button.active{color:var(--ink);border-color:#b9b9bf;background:#f0f0f3}
@@ -197,6 +204,73 @@
   body.inline .gallery .shot-add{display:flex}
   body.inline .as-id .ic,body.inline .gp-side .ic,body.inline .gfx .card .body img{cursor:pointer}
   body.inline .as-id .ic:hover,body.inline .gp-side .ic:hover{outline:3px solid #fff;outline-offset:2px}
+  /* Submit / diff dialog */
+  .diff-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.42);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:24px}
+  .diff-overlay.hidden{display:none}
+  .diff-modal{background:var(--card);border-radius:16px;max-width:780px;width:100%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.32);overflow:hidden}
+  .diff-head{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid var(--line)}
+  .diff-head h2{margin:0;font-size:16px;font-weight:800}
+  .diff-head .diff-c{color:var(--bad)} .diff-head .diff-n{color:var(--ok)}
+  .diff-head button{border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer;color:var(--muted)}
+  .diff-body{padding:6px 20px 14px;overflow:auto}
+  .diff-grp{margin-top:16px}
+  .diff-grp>h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 8px}
+  .diff-row{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px}
+  .diff-row .f{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;display:flex;align-items:center;gap:7px}
+  .diff-old{color:var(--bad);text-decoration:line-through;text-decoration-color:rgba(210,59,59,.5);white-space:pre-wrap;font-size:13px;line-height:1.45;margin-bottom:3px}
+  .diff-new{color:var(--ok);white-space:pre-wrap;font-size:13px;line-height:1.45}
+  .diff-none{color:var(--muted);font-size:14px;padding:22px 0;text-align:center}
+  .diff-badge{font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px}
+  .diff-badge.chg{background:#fdebd0;color:#9c6510} .diff-badge.add{background:#d6f0e2;color:#0f6b3e} .diff-badge.rem{background:#fde2e2;color:#b3261e}
+  .diff-foot{display:flex;align-items:center;gap:12px;padding:13px 20px;border-top:1px solid var(--line)}
+  .diff-foot .diff-summary{flex:1;font-size:13px;color:var(--muted)}
+  #cfgMsg span.ok{color:var(--ok)} #cfgMsg span.bad{color:var(--bad)} #cfgMsg{line-height:1.5}
+  .diff-foot button{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:8px 16px;font-weight:600;font-size:13px;cursor:pointer}
+  .diff-foot button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  /* diff dialog tabs (Text / Screenshots) */
+  .diff-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:2px 0 12px;position:sticky;top:0;background:var(--card);padding-top:8px;z-index:2}
+  .diff-tabs button{border:0;background:transparent;padding:9px 14px;font-weight:700;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .diff-tabs button.active{color:var(--ink);border-bottom-color:var(--ink)}
+  .diff-count{display:inline-block;min-width:16px;text-align:center;font-size:11px;background:#fdebd0;color:#9c6510;border-radius:9px;padding:0 6px;margin-left:5px;vertical-align:1px}
+  .diff-pane.hidden{display:none}
+  .diff-imgrow{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .diff-imglbl{font-size:12px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:7px;margin-bottom:8px}
+  .diff-imgs{display:flex;align-items:center;gap:14px}
+  .diff-imgs figure{margin:0;text-align:center}
+  .diff-imgs figcaption{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:5px}
+  .diff-imgs img{height:150px;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,.12);display:block;cursor:zoom-in}
+  /* fullscreen image lightbox */
+  .lightbox{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:34px;cursor:zoom-out}
+  .lightbox.hidden{display:none}
+  .lightbox img{max-width:95vw;max-height:90vh;object-fit:contain;border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);cursor:default}
+  .lightbox .lb-cap{position:absolute;top:18px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;font-weight:600;background:rgba(0,0,0,.4);padding:5px 14px;border-radius:20px}
+  .lightbox .lb-close{position:absolute;top:14px;right:18px;border:0;background:rgba(255,255,255,.16);color:#fff;width:40px;height:40px;border-radius:50%;font-size:19px;cursor:pointer}
+  .lightbox .lb-close:hover{background:rgba(255,255,255,.32)}
+  /* import/export config modal (reuses .diff-overlay/.diff-modal) */
+  .cfg-text{width:100%;min-height:46vh;border:1px solid var(--line);border-radius:10px;padding:12px;
+    font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;box-sizing:border-box;background:var(--bg);color:var(--ink)}
+  .cfg-text[readonly]{background:#f7f7f9}
+  .cfg-exptabs{margin:0 0 10px;display:inline-flex}
+  .diff-imgs .cur img{outline:2px solid rgba(210,59,59,.45)}
+  .diff-imgs .nw img{outline:2px solid rgba(26,156,84,.6)}
+  .diff-arrow{color:var(--muted);font-size:18px;flex:none}
+  .diff-noimg{height:150px;width:72px;display:flex;align-items:center;justify-content:center;border:2px dashed var(--line);border-radius:10px;color:var(--muted);font-size:20px}
+  /* per-slot drop frames (shown while dragging image files over NEW) */
+  .shot .dz-tip{display:none}
+  body.dz-new .shot[data-cat]{outline:3px dashed var(--brand2);outline-offset:-3px;border-radius:24px;transition:outline-color .12s,background .12s}
+  body.dz-new .shot[data-cat]::after{content:'';position:absolute;inset:0;border-radius:24px;background:rgba(21,122,72,.10);pointer-events:none}
+  body.dz-new .shot[data-cat] .dz-tip{display:block;position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:7;
+    background:rgba(0,0,0,.66);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:7px;pointer-events:none;white-space:nowrap}
+  body.dz-new .shot[data-cat] .dz-tip::before{content:'⤓ Drop to replace'}
+  body.dz-new .shot.dz-over{outline-style:solid;outline-width:4px;outline-color:var(--brand1)}
+  body.dz-new .shot.dz-over::after{background:rgba(21,122,72,.24)}
+  body.dz-new .shot.dz-over .dz-tip{background:var(--brand2)}
+  body.dz-new .shot.dz-over .dz-tip::before{content:'⤓ Drop here'}
+  /* locked overlay message for CURRENT */
+  .drop-overlay .msg-lock{display:none}
+  .drop-overlay.locked{background:rgba(178,38,30,.16)}
+  .drop-overlay.locked .msg-drop{display:none}
+  .drop-overlay.locked .msg-lock{display:block;border:2px solid var(--bad)}
 </style>
 </head>
 <body>
@@ -207,13 +281,20 @@
     <button data-store="appstore" class="active">App Store</button>
     <button data-store="googleplay">Google Play</button>
   </div>
+  <div class="seg" id="variantSeg" title="Compare the listing about to be uploaded vs what is live now">
+    <button data-variant="new" class="active">New ⬆</button>
+    <button data-variant="current">Current</button>
+  </div>
+  <button class="toggle hidden" id="tryTplBtn" title="Fill the New variant with the bundled demo template (copies assets/template → assets/new)">✨ Try template</button>
+  <button class="toggle" id="syncBtn" title="Pull the live listing from App Store + Google Play into the Current tab (calls /api/sync)">⟳ Sync</button>
+  <button class="toggle" id="submitBtn" title="Preview the diff between Current (live on store) and New (pending) before submitting">Review Diff</button>
   <div class="seg" id="localeSeg"></div>
   <button class="toggle" id="asoToggle">ASO checks</button>
   <button class="toggle" id="inlineBtn">Edit on page</button>
   <button class="toggle" id="checklistBtn">Release checklist</button>
   <button class="toggle" id="editToggle">Edit JSON</button>
-  <button class="toggle" id="exportBtn">Export data</button>
-  <button class="toggle" id="loadBtn">Load JSON…</button>
+  <button class="toggle" id="exportBtn">⤓ Export</button>
+  <button class="toggle" id="loadBtn">⤒ Import</button>
   <button class="toggle" id="loadImgBtn">Load images…</button>
   <span class="dz-hint">⤵ or drag images / a folder anywhere</span>
   <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
@@ -234,8 +315,54 @@
   <textarea id="jsonText" spellcheck="false" placeholder="Load or paste listing.json here…"></textarea>
 </div>
 <div class="checklist hidden" id="checklist"></div>
-<div class="drop-overlay" id="dropOverlay"><div class="box"><div class="big">🖼️</div>Drop images or a folder
-  <small>Auto-sorted by name &amp; aspect ratio into iPhone · iPad · phone · tablet · app icon · feature graphic</small></div></div>
+<div class="diff-overlay hidden" id="diffOverlay">
+  <div class="diff-modal">
+    <div class="diff-head">
+      <h2>Review changes — <span class="diff-c">Current</span> → <span class="diff-n">New</span></h2>
+      <button id="diffClose" aria-label="Close">✕</button>
+    </div>
+    <div class="diff-body" id="diffBody"></div>
+    <div class="diff-foot">
+      <span class="diff-summary" id="diffSummary"></span>
+      <button id="diffCancel">Close</button>
+      <button id="diffConfirm" class="primary">Looks good ✓</button>
+    </div>
+  </div>
+</div>
+<div class="lightbox hidden" id="lightbox">
+  <div class="lb-cap" id="lbCap"></div>
+  <button class="lb-close" id="lbClose" aria-label="Close">✕</button>
+  <img id="lbImg" src="" alt="">
+</div>
+<div class="diff-overlay hidden" id="cfgOverlay">
+  <div class="diff-modal">
+    <div class="diff-head"><h2 id="cfgTitle">Export config</h2><button id="cfgClose" aria-label="Close">✕</button></div>
+    <div class="diff-body">
+      <div class="seg cfg-exptabs hidden" id="cfgExpTabs">
+        <button data-exp="json" class="active">Listing JSON</button>
+        <button data-exp="env">Env · Sync API</button>
+      </div>
+      <textarea id="cfgText" class="cfg-text" spellcheck="false"></textarea>
+    </div>
+    <div class="diff-foot">
+      <input type="file" id="cfgFile" accept="application/json,.json" class="hidden">
+      <button id="cfgPick" class="hidden">📁 Choose file…</button>
+      <span class="diff-summary" id="cfgMsg"></span>
+      <button id="cfgCopy" class="hidden">📋 Copy</button>
+      <button id="cfgSave" class="primary hidden">💾 Save .json</button>
+      <button id="cfgLoad" class="primary hidden">Load → Current</button>
+      <button id="cfgTestEnv" class="hidden">🔌 Test keys</button>
+      <button id="cfgSaveEnv" class="primary hidden">💾 Save .env to local</button>
+      <button id="cfgCancel">Close</button>
+    </div>
+  </div>
+</div>
+<div class="drop-overlay" id="dropOverlay">
+  <div class="box msg-drop"><div class="big">🖼️</div>Drop images or a folder
+    <small>Auto-sorted by name &amp; aspect ratio into iPhone · iPad · phone · tablet · app icon · feature graphic</small></div>
+  <div class="box msg-lock"><div class="big">🔒</div>Current is locked
+    <small>This is the live store listing (read-only). Switch to <b>New</b> to update screenshots.</small></div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -243,7 +370,7 @@ const LIM = {
   appstore:{name:30,subtitle:30,keywords:100,promotionalText:170,description:4000,whatsNew:4000},
   googleplay:{title:30,shortDescription:80,fullDescription:4000,changelog:500}
 };
-let DATA=null, SAVED=null, store='appstore', locale='en-US', shotTab='phone', showAso=false, mode='preview', inlineEdit=false;
+let DATA=null, SAVED=null, store='appstore', locale='en-US', shotTab='phone', showAso=false, mode='preview', inlineEdit=false, VARIANT='new';
 
 const esc=s=>(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const cnt=(s,max)=>{const n=[...(s||'')].length;return `<span class="count ${n<=max?'ok':'bad'}">${n}/${max}</span>`;};
@@ -255,12 +382,22 @@ function getPath(o,p){return p.split('.').reduce((a,k)=>a==null?a:a[k],o);}
 function setPath(o,p,v){const k=p.split('.');let n=o;for(let i=0;i<k.length-1;i++){if(n[k[i]]==null)n[k[i]]={};n=n[k[i]];}n[k[k.length-1]]=v;}
 
 function gallery(list,cls='',cat=''){
-  const imgs=(list||[]).map((s,i)=>{
+  list=list||[];
+  // Empty "Current" (not synced yet): show muted placeholder frames, not a blank gap.
+  if(!list.length && DATA && DATA.app && DATA.app._empty){
+    const n=(cat==='ipad'||cat==='tablet')?2:3;
+    const ph=VARIANT==='current'?'⟳ Sync to load':'✨ Try template';
+    const slots=Array.from({length:n}).map(()=>`<div class="shot empty"><span class="ph">${ph}</span></div>`).join('');
+    return `<div class="gallery ${cls} empty-current">${slots}</div>`;
+  }
+  const imgs=list.map((s,i)=>{
     const img=`<img loading="lazy" src="${s.file}" alt="${esc(s.label)}">`;
-    if(!inlineEdit||!cat) return img;
-    return `<div class="shot">${img}<div class="shot-ctl">
+    if(!cat) return img;
+    const ctl=inlineEdit?`<div class="shot-ctl">
       <button data-act="rep" data-cat="${cat}" data-i="${i}" title="Replace image">⤴</button>
-      <button data-act="del" data-cat="${cat}" data-i="${i}" title="Remove image">✕</button></div></div>`;
+      <button data-act="del" data-cat="${cat}" data-i="${i}" title="Remove image">✕</button></div>`:'';
+    // .shot is always present (data-cat/data-i) so it can be a per-slot drop target
+    return `<div class="shot" data-cat="${cat}" data-i="${i}">${img}${ctl}<span class="dz-tip"></span></div>`;
   }).join('');
   const add=(inlineEdit&&cat)?`<button class="shot-add" data-act="add" data-cat="${cat}" title="Add image(s)">＋</button>`:'';
   return `<div class="gallery ${cls}">${imgs}${add}</div>`;
@@ -416,7 +553,12 @@ function render(){
   document.body.classList.toggle('inline', inlineEdit);
 
   const root=document.getElementById('app');
-  root.innerHTML=(store==='appstore'?viewAppStore(a,L):viewPlay(a,L))+asoPanel(a,L);
+  const banner = (a && a._empty)
+    ? (VARIANT==='current'
+        ? '<div class="sync-banner">⟳ <b>Current is empty.</b> Press <b>Sync</b> to load the live store listing from App Store Connect / Google Play.</div>'
+        : '<div class="sync-banner">✨ <b>New is empty.</b> Press <b>Try template</b> to load the demo, or add your own screenshots (Load images / drag &amp; drop).</div>')
+    : '';
+  root.innerHTML=banner+(store==='appstore'?viewAppStore(a,L):viewPlay(a,L))+asoPanel(a,L);
   root.querySelectorAll('.subtabs button').forEach(b=>b.onclick=()=>{shotTab=b.dataset.tab;render();});
   // inline UI editing: write text edits straight back into DATA (no re-render → keeps caret)
   root.querySelectorAll('[data-edit]').forEach(el=>el.addEventListener('input',()=>{
@@ -543,6 +685,7 @@ async function filesFromDrop(dt){
 }
 async function loadImageFiles(files){
   if(!DATA){ toast('Listing not loaded yet'); return; }
+  if(VARIANT==='current'){ toast('🔒 Current is the live store listing (read-only) — switch to New to update'); return; }
   files=[...files].filter(f=>/^image\//.test(f.type)||/\.(png|jpe?g|webp|svg|gif|heic)$/i.test(f.name));
   if(!files.length){ toast('No images found in the drop'); return; }
   const metas=(await Promise.all(files.map(readImage)))
@@ -574,15 +717,46 @@ $('loadImgBtn').onclick=()=>$('imgInputFlat').click();
 $('imgInputFlat').onchange=e=>{ loadImageFiles(e.target.files); e.target.value=''; };
 $('imgInput').onchange=e=>{ loadImageFiles(e.target.files); e.target.value=''; };
 
+// Current = live store data → read-only. Only New can receive dropped images.
+const isLocked=()=>VARIANT==='current';
+const hasFiles=e=>e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files');
+function setDragUI(on){
+  document.body.classList.toggle('dz-new', on && !isLocked());   // per-slot frames on New
+  dz.classList.toggle('locked', isLocked());
+  dz.classList.toggle('show', on && isLocked());                 // big lock banner on Current
+  if(!on) document.querySelectorAll('.shot.dz-over').forEach(s=>s.classList.remove('dz-over'));
+}
+// Replace a single screenshot slot with the first dropped image.
+async function replaceSlot(cat,i,files){
+  if(isLocked()) return;
+  files=[...files].filter(f=>/^image\//.test(f.type)||/\.(png|jpe?g|webp|svg|gif|heic)$/i.test(f.name));
+  if(!files.length){ toast('No image in the drop'); return; }
+  const m=await readImage(files[0]);
+  DATA.screenshots=DATA.screenshots||{}; const arr=DATA.screenshots[cat]||(DATA.screenshots[cat]=[]);
+  const shot={file:m.url,label:m.name.replace(/\.[^.]+$/,''),size:(m.w&&m.h)?`${m.w}×${m.h}`:''};
+  if(i<arr.length) arr[i]=shot; else arr.push(shot);
+  if(mode==='edit') setMode('preview'); else render();
+  toast(`Updated ${cat} #${i+1}${files.length>1?' — extra images ignored (one slot)':''}`);
+}
 ['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{
-  if(e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files')){ e.preventDefault(); dz.classList.add('show'); }
-}));
-document.addEventListener('dragleave',e=>{ if(e.clientX<=0||e.clientY<=0||e.relatedTarget===null) dz.classList.remove('show'); });
-document.addEventListener('drop',e=>{
-  if(e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files')){
-    e.preventDefault(); dz.classList.remove('show');
-    filesFromDrop(e.dataTransfer).then(loadImageFiles);
+  if(!hasFiles(e)) return;
+  e.preventDefault(); setDragUI(true);
+  if(!isLocked()){
+    const slot=e.target.closest&&e.target.closest('.shot[data-cat]');
+    document.querySelectorAll('.shot.dz-over').forEach(s=>{ if(s!==slot) s.classList.remove('dz-over'); });
+    if(slot) slot.classList.add('dz-over');
   }
+}));
+document.addEventListener('dragleave',e=>{ if(e.clientX<=0||e.clientY<=0||e.relatedTarget===null) setDragUI(false); });
+document.addEventListener('drop',async e=>{
+  if(!hasFiles(e)) return;
+  e.preventDefault();
+  const slot=(!isLocked()&&e.target.closest)?e.target.closest('.shot[data-cat]'):null;
+  setDragUI(false);
+  if(isLocked()){ toast('🔒 Current is the live store listing (read-only) — switch to New to update'); return; }
+  const files=await filesFromDrop(e.dataTransfer);
+  if(slot) replaceSlot(slot.dataset.cat, +slot.dataset.i, files);   // drop on a slot → replace just that one
+  else loadImageFiles(files);                                        // drop elsewhere → auto-sort whole galleries
 });
 
 /* ---------------- Release checklist ---------------- */
@@ -735,21 +909,372 @@ $('inlineBtn').onclick=()=>{
   if(inlineEdit&&typeof toast==='function') toast('Edit on page: click any text to edit · click an image to replace');
 };
 
-$('exportBtn').onclick=()=>{
-  const txt=JSON.stringify(DATA,null,2);
-  const blob=new Blob([txt],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download='listing.json'; a.click();
-  URL.revokeObjectURL(a.href);
-  if(typeof toast==='function')
-    toast('Exported listing.json'+(/blob:/.test(txt)?' — note: dropped/replaced images are session-only blob URLs':''));
-};
+// Import / Export config — Export shows a JSON preview dialog with Save;
+// Import accepts pasted text or a picked .json file and loads it as Current.
+(function(){
+  const ov=$('cfgOverlay'), ta=$('cfgText'), msg=$('cfgMsg'), title=$('cfgTitle');
+  const setBtns=(ids,on)=>ids.forEach(id=>$(id).classList.toggle('hidden',!on));
+  let cfgMode='export', cfgSub='json';   // mode: export|import · sub: json (listing) | env (Sync API)
+  // Build the Sync .env (only the keys ASC/Play need to load screenshots + metadata).
+  // Fills real values from `real` (server /api/env) where present, else placeholders.
+  function genEnvTemplate(real){
+    real = real || {};
+    const a=(DATA&&DATA.app)||{};
+    const v=(k,def)=> (real[k]!=null && String(real[k])!=='') ? String(real[k]) : def;
+    const q=s=>'"'+String(s).replace(/"/g,'\\"')+'"';
+    return [
+'# Env for the Sync button — loads App Store Connect + Google Play screenshots & metadata into "Current".',
+'# ⚠️  CONTAINS REAL CREDENTIALS when exported from a configured host. Keep private — do NOT commit/share.',
+'# Self-contained: the .p8 key and service-account JSON are embedded as single-line base64',
+'# (ASC_KEY_P8_B64 / PLAYSTORE_SERVICE_ACCOUNT_JSON_B64) — no extra files to copy. Import decodes them.',
+'',
+'PORT='+v('PORT','8092'),
+'',
+'# --- App Store Connect API (iOS: iPhone/iPad screenshots + metadata) ---',
+'ASC_KEY_ID='+q(v('ASC_KEY_ID',''))+'                 # Users & Access ▸ Keys',
+'ASC_ISSUER_ID='+q(v('ASC_ISSUER_ID','')),
+'ASC_KEY_P8_B64='+q(v('ASC_KEY_P8_B64',''))+'   # base64 of the .p8 private key (single line)',
+'BUNDLE_ID='+q(v('BUNDLE_ID', a.iosBundleId||'com.example.app')),
+'',
+'# --- Google Play (Android: phone screenshots + metadata) ---',
+'PLAYSTORE_PACKAGE_NAME='+q(v('PLAYSTORE_PACKAGE_NAME', a.androidPackage||'com.example.app')),
+'PLAYSTORE_SERVICE_ACCOUNT_JSON_B64='+q(v('PLAYSTORE_SERVICE_ACCOUNT_JSON_B64',''))+'   # base64 of the service-account JSON (single line)',
+    ].join('\n');
+  }
+  function renderCfg(){
+    const exp = cfgMode==='export';
+    document.querySelectorAll('#cfgExpTabs button').forEach(b=>b.classList.toggle('active', b.dataset.exp===cfgSub));
+    ta.readOnly = exp;
+    msg.textContent = '';
+    setBtns(['cfgSave','cfgCopy'], exp);
+    setBtns(['cfgLoad'], !exp && cfgSub==='json');
+    setBtns(['cfgSaveEnv','cfgTestEnv'], !exp && cfgSub==='env');
+    setBtns(['cfgPick'], !exp);
+    if(exp){
+      $('cfgSave').textContent = cfgSub==='env' ? '💾 Save .env' : '💾 Save .json';
+      if(cfgSub==='env'){
+        ta.value = '# Loading environment values from server…';
+        fetch('/api/env').then(r=>r.json()).then(d=>{
+          if(cfgMode!=='export' || cfgSub!=='env') return;
+          const real = (d && d.ok && d.env) ? d.env : {};
+          ta.value = genEnvTemplate(real);
+          const filled = ['ASC_KEY_ID','ASC_ISSUER_ID','ASC_KEY_P8_B64','PLAYSTORE_SERVICE_ACCOUNT_JSON_B64'].filter(k=>real[k]).length;
+          msg.textContent = filled ? ('✓ Filled '+filled+' credential(s) from server — review & Save') : 'Fillable template — enter credentials, then Save';
+        }).catch(()=>{ if(cfgMode==='export'&&cfgSub==='env'){ ta.value=genEnvTemplate({}); msg.textContent='Server /api/env unavailable — fillable template'; } });
+      } else { ta.value = JSON.stringify(DATA, null, 2); }
+    } else {
+      ta.value = '';
+      ta.placeholder = cfgSub==='env'
+        ? 'Paste the exported .env here (or pick a .env file) — it is saved to local .env the first time, so Sync works after.'
+        : 'Paste listing JSON here, or pick a .json file…';
+    }
+  }
+  function openCfg(mode){
+    cfgMode=mode; cfgSub='json';
+    title.textContent = mode==='export' ? 'Export config' : 'Import config';
+    $('cfgExpTabs').classList.remove('hidden');
+    renderCfg();
+    ov.classList.remove('hidden');
+    if(mode==='import') setTimeout(()=>ta.focus(),0);
+  }
+  document.querySelectorAll('#cfgExpTabs button').forEach(b=>b.onclick=()=>{ cfgSub=b.dataset.exp; renderCfg(); });
+  const close=()=>ov.classList.add('hidden');
+  window.__openCfg = openCfg;
+  $('cfgClose').onclick=close; $('cfgCancel').onclick=close;
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  // EXPORT — download .json or .env
+  $('cfgSave').onclick=()=>{
+    const env = cfgSub==='env';
+    const name = env ? '.env' : ((VARIANT==='current') ? 'listing-current.json' : 'listing.json');
+    const blob=new Blob([ta.value],{type:env?'text/plain':'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href);
+    if(typeof toast==='function') toast('Saved '+name);
+  };
+  $('cfgCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(ta.value); msg.textContent='✓ Copied to clipboard'; }catch(e){ msg.textContent='Copy failed — select & copy manually'; } };
+  // IMPORT — pick a file (json or env) into the textarea
+  $('cfgPick').onclick=()=>$('cfgFile').click();
+  $('cfgFile').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+    rd.onload=()=>{ ta.value=rd.result;
+      if(cfgSub==='env'){ msg.textContent='Loaded “'+f.name+'” — review, then Save .env to local'; }
+      else { try{ JSON.parse(rd.result); msg.textContent='Loaded “'+f.name+'” — review, then Load'; }catch(err){ msg.textContent='“'+f.name+'” has invalid JSON: '+err.message; } }
+    };
+    rd.readAsText(f); e.target.value=''; };
+  // IMPORT listing JSON → load as Current
+  $('cfgLoad').onclick=()=>{
+    let parsed; try{ parsed=JSON.parse(ta.value); }catch(e){ msg.textContent='✗ Invalid JSON: '+e.message; return; }
+    DATA=parsed; SAVED=JSON.parse(JSON.stringify(parsed)); VARIANT='current';
+    document.body.classList.add('variant-current');
+    document.querySelectorAll('#variantSeg button').forEach(b=>b.classList.toggle('active', b.dataset.variant==='current'));
+    try{ if(typeof mode!=='undefined' && mode==='edit') setMode('preview'); else render(); }
+    catch(e){ if(typeof toast==='function') toast('Imported, but render warning: '+e.message); }
+    close();
+    if(typeof toast==='function') toast('Imported config → loaded as Current');
+  };
+  // IMPORT env → save to local .env (first time only; won't clobber an existing one)
+  $('cfgSaveEnv').onclick=()=>{
+    const txt=ta.value.trim();
+    if(!txt){ msg.textContent='Paste or pick a .env first'; return; }
+    msg.textContent='Saving…';
+    fetch('/api/env',{method:'POST',headers:{'Content-Type':'text/plain'},body:txt})
+      .then(r=>r.json()).then(d=>{
+        if(d && d.saved){ msg.textContent='✓ Saved to local .env — Sync ready (restart server if it was already running)'; if(typeof toast==='function') toast('Saved local .env'); close(); }
+        else if(d && d.existed){ msg.textContent='⚠️ A local .env already exists — kept it (first-time only). Delete .env to re-import.'; }
+        else { msg.textContent='Save failed: '+((d&&d.error)||'unknown'); }
+      }).catch(e=>{ msg.textContent='Save failed (server unavailable): '+e.message; });
+  };
+  $('cfgTestEnv').onclick=()=>{
+    const txt=ta.value.trim();
+    if(!txt){ msg.textContent='Paste a .env first'; return; }
+    const btn=$('cfgTestEnv'), orig=btn.textContent;
+    btn.disabled=true; btn.textContent='🔌 Testing…'; msg.textContent='Verifying keys against the store APIs…';
+    fetch('/api/test',{method:'POST',headers:{'Content-Type':'text/plain'},body:txt})
+      .then(r=>r.json()).then(d=>{
+        if(d && d.error){ msg.innerHTML='✗ Test failed: '+esc(d.error); return; }
+        const line=(name,r)=>`${r&&r.ok?'✓':'✗'} ${name}: ${esc((r&&r.detail)||'no result')}`;
+        msg.innerHTML=`<span class="${d.appstore&&d.appstore.ok?'ok':'bad'}">${line('App Store Connect',d.appstore)}</span><br>`
+                     +`<span class="${d.googleplay&&d.googleplay.ok?'ok':'bad'}">${line('Google Play',d.googleplay)}</span>`;
+      }).catch(e=>{ msg.textContent='Test failed (server unavailable — run serve.py): '+e.message; })
+      .finally(()=>{ btn.disabled=false; btn.textContent=orig; });
+  };
+  $('exportBtn').onclick=()=>openCfg('export');   // "Export"
+  $('loadBtn').onclick=()=>openCfg('import');      // "Import"
+})();
 
-fetch('listing.json').then(r=>r.json()).then(d=>{DATA=d;SAVED=JSON.parse(JSON.stringify(d));render();}).catch(e=>{
-  document.getElementById('app').innerHTML=`<div class="err"><p>Could not load <code>listing.json</code> (browsers block <code>file://</code> fetch).</p>
-  <p>Serve it: <code>python3 -m http.server 8092 --directory resources/marketing</code> then open <code>/submit-store/index.html</code></p></div>`;
-  console.error(e);
+// Append ?v=<token> to every local image path so the browser refetches freshly
+// synced files (same filename, new bytes) instead of serving a stale cache.
+function bustImages(obj, token){
+  if(Array.isArray(obj)){ obj.forEach(x=>bustImages(x, token)); return; }
+  if(obj && typeof obj==='object'){
+    for(const k in obj){
+      const val=obj[k];
+      if(typeof val==='string' && /^assets\/.+\.(png|jpe?g|webp|svg)$/i.test(val)){
+        obj[k]=val+'?v='+token;
+      } else bustImages(val, token);
+    }
+  }
+}
+// Both variants default to EMPTY placeholders: New comes from your screenshots
+// (or "Try template"), Current comes from the live store (Sync). A populated
+// listing.json / listing-current.json (real data) overrides the empty state.
+let NEW_CACHE=null, SCAFFOLD=null;
+// Structural base (app identity + locale/gallery shape) for an empty variant.
+// Prefer real listing.json, else the bundled template, so empties still render.
+async function getScaffold(){
+  if(SCAFFOLD) return SCAFFOLD;
+  for(const f of ['listing.json','listing-template.json']){
+    try{ const d=await (await fetch(f+'?t='+Date.now())).json(); if(d && !d._empty){ SCAFFOLD=d; break; } }catch(_){}
+  }
+  return SCAFFOLD;
+}
+// Empty-but-valid listing built from a base: keep identity + locale/gallery shape,
+// clear all text + screenshots. _empty drives the placeholder UI.
+function emptyListing(base, which){
+  const c = base ? JSON.parse(JSON.stringify(base))
+                 : {app:{},locales:{},screenshots:{},graphics:{},limits:{}};
+  c.screenshots = c.screenshots || {};
+  ['iphone','ipad','phone','tablet'].forEach(k=>c.screenshots[k]=[]);
+  if(c.locales) for(const loc in c.locales){ const b=c.locales[loc]||{};
+    for(const f in b){ if(f!=='displayName' && typeof b[f]==='string') b[f]=''; } }
+  if(c.graphics) for(const g in c.graphics){ const o=c.graphics[g];
+    if(o && typeof o==='object'){ o.file=''; o.status='—'; } }
+  c.app = c.app || {};
+  c.app._empty = true;
+  c.app._variant = which==='current'
+    ? 'CURRENT — not synced yet. Press ⟳ Sync to load the live store listing.'
+    : 'NEW — empty. Press “✨ Try template” for a demo, or add your own screenshots.';
+  return c;
+}
+async function fetchListing(v){
+  const base = await getScaffold();
+  const file = v==='current' ? 'listing-current.json' : 'listing.json';
+  try{
+    const r = await fetch(file+'?t='+Date.now());
+    if(!r.ok) throw 0;
+    const d = await r.json();
+    if(d && d._empty) return emptyListing(v==='current'?(NEW_CACHE||base):base, v);
+    if(v!=='current') NEW_CACHE=JSON.parse(JSON.stringify(d));
+    return d;
+  }catch(_){ return emptyListing(v==='current'?(NEW_CACHE||base):base, v); }
+}
+const fetchCurrent=()=>fetchListing('current');   // used by the Review Diff builder
+async function loadVariant(v, bust){
+  try{
+    const d = await fetchListing(v);
+    if(bust) bustImages(d, bust);
+    DATA=d; SAVED=JSON.parse(JSON.stringify(d)); VARIANT=v; render();
+    document.querySelectorAll('#variantSeg button').forEach(b=>b.classList.toggle('active', b.dataset.variant===v));
+    document.body.classList.toggle('variant-current', v==='current');
+  }catch(e){
+    document.getElementById('app').innerHTML=`<div class="err"><p>Could not load listing data (browsers block <code>file://</code> fetch).</p>
+    <p>Serve it: <code>python3 serve.py</code> (or <code>python3 -m http.server 8092</code>) from the store-preview folder, then open <code>/</code></p></div>`;
+    console.error(e);
+  }
+}
+document.querySelectorAll('#variantSeg button').forEach(b=>{
+  b.onclick=()=>loadVariant(b.dataset.variant);
 });
+// Sync: pull the LIVE store listing into the Current tab via the /api/sync backend.
+(function(){
+  const btn=document.getElementById('syncBtn'); if(!btn) return;
+  btn.onclick=async()=>{
+    const orig=btn.textContent; btn.disabled=true; btn.textContent='⟳ Syncing…';
+    try{
+      const r=await fetch('/api/sync'); const j=await r.json();
+      if(!j.ok) throw new Error(j.error||'sync failed');
+      await loadVariant('current', Date.now());  // bust image cache after sync
+      btn.textContent='✓ Synced';
+      if(typeof toast==='function') toast(`Synced live store data — App Store iPhone ${j.appstore.iphone}/iPad ${j.appstore.ipad}, Play phone ${j.googleplay.phone} (v${j.versionName||'?'})`);
+    }catch(e){
+      btn.textContent='✗ Sync failed';
+      if(typeof toast==='function') toast('Sync failed: '+e.message); else alert('Sync failed: '+e.message);
+      console.error(e);
+    }finally{
+      setTimeout(()=>{btn.disabled=false; btn.textContent=orig;}, 2500);
+    }
+  };
+})();
+// Try template: copy the bundled demo (assets/template + listing-template.json)
+// into the editable New variant via /api/apply-template. Only shown when a
+// template is bundled (template repo), not on a real listing.
+(function(){
+  const btn=document.getElementById('tryTplBtn'); if(!btn) return;
+  fetch('listing-template.json?t='+Date.now()).then(r=>{ if(r.ok) btn.classList.remove('hidden'); }).catch(()=>{});
+  btn.onclick=async()=>{
+    const orig=btn.textContent; btn.disabled=true; btn.textContent='✨ Applying…';
+    try{
+      const r=await fetch('/api/apply-template',{method:'POST'}); const j=await r.json();
+      if(!j.ok) throw new Error(j.error||'apply failed');
+      SCAFFOLD=null; NEW_CACHE=null;            // force re-read of the now-populated listing.json
+      await loadVariant('new', Date.now());
+      btn.textContent='✓ Applied';
+      if(typeof toast==='function') toast(`Template applied — ${j.copied} screenshot(s) copied into New. Edit or replace them, then Review Diff.`);
+    }catch(e){
+      btn.textContent='✗ Failed';
+      if(typeof toast==='function') toast('Try template failed (run serve.py): '+e.message); else alert(e.message);
+      console.error(e);
+    }finally{
+      setTimeout(()=>{btn.disabled=false; btn.textContent=orig;}, 2500);
+    }
+  };
+})();
+// Submit: preview the diff between Current (live on store) and New (pending).
+(function(){
+  const btn=document.getElementById('submitBtn'); if(!btn) return;
+  const overlay=document.getElementById('diffOverlay');
+  const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const EMPTY='(empty)';
+  function diffField(rows,field,o,n){
+    o=o||''; n=n||'';
+    if(o===n) return;
+    const tag=!o?'add':(!n?'rem':'chg');
+    rows.push({field,o:o||EMPTY,n:n||EMPTY,tag});
+  }
+  function build(cur,nw){
+    const groups=[]; let changes=0;
+    const push=(title,rows)=>{ if(rows.length){ groups.push({title,rows}); changes+=rows.length; } };
+    // App-level
+    let app=[]; diffField(app,'name',cur.app&&cur.app.name,nw.app&&nw.app.name);
+    diffField(app,'versionName',cur.app&&cur.app.versionName,nw.app&&nw.app.versionName);
+    push('App', app);
+    // Per locale
+    const cl=cur.locales||{}, nl=nw.locales||{};
+    const locs=[...new Set([...Object.keys(cl),...Object.keys(nl)])].sort((a,b)=>(a!=='en-US')-(b!=='en-US')||a.localeCompare(b));
+    for(const loc of locs){
+      const c=cl[loc]||{}, n=nl[loc]||{}, ca=c.appstore||{}, na=n.appstore||{}, cg=c.googleplay||{}, ng=n.googleplay||{};
+      let r=[];
+      diffField(r,'App Store · name',ca.name,na.name);
+      diffField(r,'App Store · subtitle',ca.subtitle,na.subtitle);
+      diffField(r,'App Store · keywords',ca.keywords,na.keywords);
+      diffField(r,'App Store · promo text',ca.promotionalText,na.promotionalText);
+      diffField(r,'Google Play · title',cg.title,ng.title);
+      diffField(r,'Google Play · short desc',cg.shortDescription,ng.shortDescription);
+      diffField(r,'Full description',c.fullDescription,n.fullDescription);
+      diffField(r,"What's New",c.whatsNew,n.whatsNew);
+      push('Locale: '+loc, r);
+    }
+    const textChanges=changes;
+    // IMAGES — per gallery, slot-by-slot visual comparison (Current vs New)
+    const cs=cur.screenshots||{}, ns=nw.screenshots||{};
+    const GAL=[['iphone','iPhone'],['ipad','iPad'],['phone','Android phone'],['tablet','Android tablet']];
+    const galleries=[]; let imageChanges=0;
+    for(const [k,label] of GAL){
+      const co=cs[k]||[], no=ns[k]||[];
+      if(!co.length && !no.length) continue;
+      const max=Math.max(co.length,no.length), slots=[];
+      for(let i=0;i<max;i++){
+        const c=co[i]||null, n=no[i]||null;
+        const tag=!c?'add':(!n?'rem':'chg');   // add = new only, rem = removed, chg = both (review visually)
+        if(tag!=='chg') imageChanges++;          // structural change
+        slots.push({idx:i,lbl:(n&&n.label)||(c&&c.label)||'',cur:c,nw:n,tag});
+      }
+      galleries.push({key:k,label,slots,curN:co.length,newN:no.length});
+    }
+    return {groups,textChanges,galleries,imageChanges};
+  }
+  async function open(){
+    btn.disabled=true;
+    try{
+      const nw=await fetchListing('new');     // New (real listing.json) or empty placeholder
+      const cur=await fetchCurrent();          // live Current, or empty placeholder if not synced
+      const {groups,textChanges,galleries,imageChanges}=build(cur,nw);
+      const body=document.getElementById('diffBody');
+      // --- Text & metadata pane ---
+      const textHtml = groups.length
+        ? groups.map(g=>`<div class="diff-grp"><h3>${esc(g.title)}</h3>`+
+            g.rows.map(r=>`<div class="diff-row"><div class="f">${esc(r.field)} <span class="diff-badge ${r.tag}">${r.tag.toUpperCase()}</span></div>`+
+              `<div class="diff-old">${esc(r.o)}</div><div class="diff-new">${esc(r.n)}</div></div>`).join('')+`</div>`).join('')
+        : '<div class="diff-none">No text / metadata changes. ✓</div>';
+      // --- Screenshots pane (visual Current → New per slot) ---
+      const thumb=(s,k)=> s?`<figure class="${k}"><figcaption>${k==='cur'?'Current':'New'}</figcaption><img loading="lazy" src="${s.file}" alt=""></figure>`
+                          :`<figure class="${k}"><figcaption>${k==='cur'?'Current':'New'}</figcaption><div class="diff-noimg">—</div></figure>`;
+      const imgHtml = galleries.length
+        ? galleries.map(g=>`<div class="diff-grp"><h3>${esc(g.label)} · ${g.curN} → ${g.newN} shots</h3>`+
+            g.slots.map(s=>`<div class="diff-imgrow"><div class="diff-imglbl">#${s.idx+1} ${esc(s.lbl)} <span class="diff-badge ${s.tag}">${s.tag.toUpperCase()}</span></div>`+
+              `<div class="diff-imgs">${thumb(s.cur,'cur')}<span class="diff-arrow">→</span>${thumb(s.nw,'nw')}</div></div>`).join('')+`</div>`).join('')
+        : '<div class="diff-none">No screenshots.</div>';
+      body.innerHTML = `<div class="diff-tabs">`+
+        `<button data-pane="text" class="active">Text &amp; metadata${textChanges?` <span class="diff-count">${textChanges}</span>`:''}</button>`+
+        `<button data-pane="images">Screenshots${imageChanges?` <span class="diff-count">${imageChanges}</span>`:''}</button></div>`+
+        `<div class="diff-pane" data-pane="text">${textHtml}</div>`+
+        `<div class="diff-pane hidden" data-pane="images">${imgHtml}</div>`;
+      body.querySelectorAll('.diff-tabs button').forEach(b=>b.onclick=()=>{
+        body.querySelectorAll('.diff-tabs button').forEach(x=>x.classList.toggle('active',x===b));
+        body.querySelectorAll('.diff-pane').forEach(p=>p.classList.toggle('hidden',p.dataset.pane!==b.dataset.pane));
+      });
+      document.getElementById('diffSummary').textContent = (textChanges||imageChanges)
+        ? `${textChanges} text field(s) · ${imageChanges} screenshot change(s) · Current → New`
+        : 'In sync — New matches Current';
+      overlay.classList.remove('hidden');
+    }catch(e){ if(typeof toast==='function') toast('Diff failed: '+e.message); console.error(e); }
+    finally{ btn.disabled=false; }
+  }
+  const close=()=>overlay.classList.add('hidden');
+  btn.onclick=open;
+  document.getElementById('diffClose').onclick=close;
+  document.getElementById('diffCancel').onclick=close;
+  document.getElementById('diffConfirm').onclick=()=>{ close(); if(typeof toast==='function') toast('Reviewed ✓ — submit via fastlane (prod.sh ios-listing / android-listing)'); };
+  overlay.onclick=e=>{ if(e.target===overlay) close(); };
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !overlay.classList.contains('hidden') && !(window.__lbOpen&&window.__lbOpen())) close(); });
+})();
+// Fullscreen lightbox — click a screenshot thumbnail in the diff dialog to preview large.
+(function(){
+  const lb=document.getElementById('lightbox'), img=document.getElementById('lbImg'), cap=document.getElementById('lbCap'), body=document.getElementById('diffBody');
+  if(!lb||!body) return;
+  const open=(src,c)=>{ img.src=src; cap.textContent=c||''; lb.classList.remove('hidden'); };
+  const close=()=>{ lb.classList.add('hidden'); img.src=''; };
+  window.__lbOpen=()=>!lb.classList.contains('hidden');
+  body.addEventListener('click',e=>{
+    const t=e.target.closest('.diff-imgs img'); if(!t) return;
+    const fig=t.closest('figure'); const side=fig&&fig.classList.contains('cur')?'Current':'New';
+    const row=t.closest('.diff-imgrow'); const lblEl=row&&row.querySelector('.diff-imglbl');
+    const lbl=lblEl?lblEl.textContent.trim().replace(/\s+/g,' '):'';
+    open(t.src, side+(lbl?' · '+lbl:''));
+  });
+  lb.addEventListener('click',e=>{ if(e.target!==img) close(); });          // backdrop closes; image stays
+  document.getElementById('lbClose').onclick=e=>{ e.stopPropagation(); close(); };
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !lb.classList.contains('hidden')){ close(); } });
+})();
+loadVariant('new');
 </script>
 </body>
 </html>

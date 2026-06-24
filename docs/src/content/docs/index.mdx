@@ -1,0 +1,47 @@
+---
+title: App Preview
+description: Load screenshots & metadata from the App Store and Google Play via API key, preview your new version, run the first-release checklist, and audit store SEO.
+template: splash
+hero:
+  tagline: Load live screenshots & metadata from the App Store and Google Play with your API keys, preview your new version, run the first-release checklist, and audit store SEO — all from one local page.
+  image:
+    alt: App Preview — store listing for App Store and Google Play, side by side
+    file: ../../assets/site-marketing-demo.png
+  actions:
+    - text: Get started
+      link: guides/setup/
+      icon: right-arrow
+    - text: Env variables
+      link: reference/env-variables/
+      variant: minimal
+    - text: API reference
+      link: api/
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Load from the stores" icon="download">
+    Pull screenshots + metadata text from App Store Connect and Google Play using
+    your API keys — straight into the Current variant.
+  </Card>
+  <Card title="Preview new version" icon="laptop">
+    See exactly how your **New** version looks on the App Store and Google Play
+    before you upload — text and screenshots, per locale.
+  </Card>
+  <Card title="First-release checklist" icon="approve-check">
+    A built-in checklist that covers everything required for a first store
+    submission, so nothing is missed.
+  </Card>
+  <Card title="Store SEO audit" icon="magnifier">
+    ASO checks for mobile store listings — title, subtitle and keyword limits,
+    plus SEO tips.
+  </Card>
+</CardGrid>
+
+:::tip[Try it live]
+Open the interactive <a href="/playground/">Playground</a> (the store-preview tool),
+or go <a href="/">back to the landing page</a>. These links work when the site is
+served by `./run.sh` (the serve.py umbrella).
+:::

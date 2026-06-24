@@ -1,0 +1,47 @@
+node_modules/
+dist/
+.DS_Store
+ios/App/Pods/
+ios/App/App/public/
+android/app/src/main/assets/public/
+android/.gradle/
+android/app/build/
+*.log
+.env
+# keep reference clones out of the app repo
+_reference/
+
+# signing secrets (keystore + passwords)
+signing/
+
+build-output/
+
+.env.prod
+
+# fastlane
+*/fastlane/report.xml
+*/fastlane/README.md
+fastlane/report.xml
+
+.claude/settings.local.json
+
+# private signing repo (separate: play2048.app_dist)
+.app_dist/
+# marketing repo (separate: play2048.app_marketing — store-preview, social cards)
+.app_marketing/
+ios/App/fastlane
+android/fastlane
+# fetched external game bundles (rebuild via scripts/fetch-bubbo.sh)
+public/games/
+landing/sdk/*.zip
+
+# social-card render artifacts (regenerable; final cards copied into landing/assets/cards)
+.env
+old_back
+resources/social-card-go2048-features/output/
+resources/social-card-go2048-features/assets/
+
+# store-preview runtime output — the repo only ships the demo (assets/template +
+# listing-template.json). "Try template" fills assets/new; Sync fills assets/current.
+assets/new/
+assets/current/

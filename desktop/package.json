@@ -1,0 +1,15 @@
+{
+  "name": "app-store-marketing-preview-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tauri desktop wrapper (macOS .dmg) for the store-preview tool.",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "bash scripts/build.sh",
+    "sidecar": "bash scripts/build-sidecar.sh"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

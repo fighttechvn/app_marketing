@@ -1,0 +1,15 @@
+node_modules/
+# Rust / Tauri build output
+src-tauri/target/
+src-tauri/gen/
+# generated sidecar binary (built by scripts/build-sidecar.sh)
+src-tauri/binaries/
+# PyInstaller + staging
+.sidecar-build/
+.pyi-dist/
+.pyi-work/
+.pyi-spec/
+.icon-1024.png
+# generated icons (run scripts/build.sh / `tauri icon`)
+src-tauri/icons/
+.DS_Store

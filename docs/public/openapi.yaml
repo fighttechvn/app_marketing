@@ -1,0 +1,166 @@
+openapi: 3.1.0
+info:
+  title: Store Preview backend (serve.py)
+  version: "1.0.0"
+  description: >
+    Localhost-only JSON endpoints added by serve.py to the static store-preview
+    page. They power Sync, Import/Export Env, Test keys, and Try template.
+    The server binds 127.0.0.1 only because /api/env and /api/sync expose
+    store credentials.
+servers:
+  - url: http://localhost:8092
+    description: Local dev server (run.sh / python3 serve.py)
+paths:
+  /api/sync:
+    get:
+      summary: Sync live store listing into Current
+      description: >
+        Pulls iPhone/iPad screenshots + metadata from App Store Connect and phone
+        screenshots + metadata from Google Play, writes listing-current.json and
+        downloads images into assets/current/. Requires credentials in the env.
+      responses:
+        "200":
+          description: Sync result counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  appstore:
+                    type: object
+                    properties:
+                      iphone: { type: integer }
+                      ipad: { type: integer }
+                  googleplay:
+                    type: object
+                    properties:
+                      phone: { type: integer }
+                  locales: { type: array, items: { type: string } }
+                  versionName: { type: string }
+        "500":
+          $ref: "#/components/responses/Error"
+  /api/env:
+    get:
+      summary: Dump the Sync env variables
+      description: >
+        Returns only the SYNC_KEYS allow-list. File credentials (.p8,
+        service-account JSON) are emitted as single-line base64 (ASC_KEY_P8_B64,
+        PLAYSTORE_SERVICE_ACCOUNT_JSON_B64). Used by the Export ▸ Env tab.
+      responses:
+        "200":
+          description: Env dump
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  env:
+                    type: object
+                    additionalProperties: { type: string }
+                  appDist: { type: string }
+                  hasProd: { type: boolean }
+    post:
+      summary: Save an imported .env to local (first-time only)
+      description: >
+        Writes the request body to the local .env. Won't clobber an existing .env
+        unless ?force=1 is set.
+      parameters:
+        - in: query
+          name: force
+          required: false
+          schema: { type: string, enum: ["1"] }
+          description: Pass force=1 to overwrite an existing .env
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema: { type: string }
+            example: |
+              PORT=8092
+              ASC_KEY_ID="5XXXXXXXXX"
+              ASC_ISSUER_ID="2e641cf7-0000-0000-0000-000000000000"
+              ASC_KEY_P8_B64="LS0tLS1CRUdJ...="
+              BUNDLE_ID="vn.fighttech.go2048"
+              PLAYSTORE_PACKAGE_NAME="vn.fighttech.go2048"
+              PLAYSTORE_SERVICE_ACCOUNT_JSON_B64="ewogICJ0...fQo="
+      responses:
+        "200":
+          description: Save result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  saved: { type: boolean }
+                  existed: { type: boolean }
+                  path: { type: string }
+        "500":
+          $ref: "#/components/responses/Error"
+  /api/test:
+    post:
+      summary: Verify credentials WITHOUT saving
+      description: >
+        Authenticates the posted .env against both stores and reports per-store.
+        App Store Connect builds a JWT and looks up the app by bundle id; Google
+        Play opens and deletes a throwaway edit to confirm app access.
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema: { type: string }
+      responses:
+        "200":
+          description: Per-store verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, description: true if either store verified }
+                  appstore: { $ref: "#/components/schemas/StoreResult" }
+                  googleplay: { $ref: "#/components/schemas/StoreResult" }
+              example:
+                ok: true
+                appstore: { ok: true, detail: "OK — GoBrain (vn.fighttech.go2048)" }
+                googleplay: { ok: true, detail: "OK — edit access to vn.fighttech.go2048 (SA google-play-upload@...)" }
+        "500":
+          $ref: "#/components/responses/Error"
+  /api/apply-template:
+    post:
+      summary: Apply the bundled demo template into New
+      description: >
+        Copies assets/template/* into assets/new/ and writes listing.json from
+        listing-template.json (rebasing assets/template → assets/new). Powers the
+        "Try template" button.
+      responses:
+        "200":
+          description: Apply result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  copied: { type: integer, description: number of screenshots copied }
+        "500":
+          $ref: "#/components/responses/Error"
+components:
+  schemas:
+    StoreResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        detail: { type: string }
+  responses:
+    Error:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              ok: { type: boolean, example: false }
+              error: { type: string }

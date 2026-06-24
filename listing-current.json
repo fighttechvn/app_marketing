@@ -1,0 +1,4 @@
+{
+  "_empty": true,
+  "_note": "Current comes from the live store via the Sync button. Until synced, the preview shows empty placeholders. Sync writes real data here + downloads screenshots to assets/current/."
+}

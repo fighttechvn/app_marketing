@@ -65,6 +65,31 @@ Key values:
 `.signing/` folder is gitignored — **copy it to another Mac to build there**. In CI,
 provide the same values as repo secrets (see `.github/workflows/release-dmg.yml`).
 
+## Auto-update (Tauri updater)
+
+The app updates itself via the **Tauri updater** — no manual reinstall:
+
+- **File ▸ Check for Updates…** (and a silent check on launch) queries the latest
+  GitHub release manifest, and if newer, prompts to **download + install + relaunch**.
+- Updates are cryptographically verified with a signing key (separate from Apple
+  signing). The keypair lives in `desktop/.signing/updater.key` (+ `.pub`); the
+  public key is in `tauri.conf.json → plugins.updater.pubkey`.
+
+Set up once:
+
+```bash
+npx @tauri-apps/cli signer generate -w desktop/.signing/updater.key
+# put the printed public key into tauri.conf.json → plugins.updater.pubkey
+```
+
+On release (`release-dmg.yml`, tag `desktop-v*`), `tauri build` produces a signed
+`AppPreview.app.tar.gz` + `.sig`; the workflow generates `latest.json` and uploads
+all three to the GitHub Release. The updater endpoint
+(`releases/latest/download/latest.json`) serves the manifest, so installed apps see
+the new version. CI signs with secrets `TAURI_SIGNING_PRIVATE_KEY` (+ password).
+
+To ship an update: bump `version` in `tauri.conf.json`, push a new `desktop-v*` tag.
+
 ## Gotchas
 
 - **Heavy deps** (`cryptography`, `google-api-python-client`) are pulled in with

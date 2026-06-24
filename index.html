@@ -1116,37 +1116,35 @@ document.querySelectorAll('#variantSeg button').forEach(b=>{
 });
 // Open folder: point the server at a project folder; it auto-checks .env + assets
 // + listings, switches root, and we reload the listing. (calls /api/open)
+// window.__openFolder(path) is also invoked by the desktop app's File ▸ Open menu.
+window.__openFolder = async function(path){
+  if(!path) return {ok:false};
+  const j = await (await fetch('/api/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path})})).json();
+  if(!j.ok) throw new Error(j.error||'open failed');
+  SCAFFOLD=null; NEW_CACHE=null;
+  await loadVariant('new', Date.now());
+  const a=j.assets||{}, c=j.creds||{};
+  if(typeof toast==='function') toast(
+    `Opened ${j.root} — env: ${j.hasEnv?(j.envKeys.length+' keys'):'none'}`
+    +` (ASC ${c.appstore?'✓':'✗'}, Play ${c.googleplay?'✓':'✗'})`
+    +` · assets new/current/template ${a.new||0}/${a.current||0}/${a.template||0}`);
+  return j;
+};
 (function(){
   const btn=document.getElementById('openDirBtn'); if(!btn) return;
-  // show the active root in the placeholder
   let cur='';
   fetch('/api/scan').then(r=>r.json()).then(d=>{ if(d&&d.ok) cur=d.root; }).catch(()=>{});
   btn.onclick=async()=>{
     const path=prompt('Open a store-preview project folder (absolute path):', cur||'');
     if(!path) return;
     const orig=btn.textContent; btn.disabled=true; btn.textContent='📁 Opening…';
-    try{
-      const r=await fetch('/api/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path})});
-      const j=await r.json();
-      if(!j.ok) throw new Error(j.error||'open failed');
-      cur=j.root;
-      SCAFFOLD=null; NEW_CACHE=null;
-      await loadVariant('new', Date.now());
-      btn.textContent='✓ Opened';
-      const a=j.assets||{}, c=j.creds||{};
-      if(typeof toast==='function') toast(
-        `Opened ${j.root} — env: ${j.hasEnv?(j.envKeys.length+' keys'):'none'}`
-        +` (ASC ${c.appstore?'✓':'✗'}, Play ${c.googleplay?'✓':'✗'})`
-        +` · assets new/current/template ${a.new||0}/${a.current||0}/${a.template||0}`);
-    }catch(e){
-      btn.textContent='✗ Failed';
-      if(typeof toast==='function') toast('Open folder failed (run serve.py): '+e.message); else alert(e.message);
-      console.error(e);
-    }finally{
-      setTimeout(()=>{btn.disabled=false; btn.textContent=orig;}, 2500);
-    }
+    try{ const j=await window.__openFolder(path); cur=j.root; btn.textContent='✓ Opened'; }
+    catch(e){ btn.textContent='✗ Failed'; if(typeof toast==='function') toast('Open folder failed (run serve.py): '+e.message); else alert(e.message); console.error(e); }
+    finally{ setTimeout(()=>{btn.disabled=false; btn.textContent=orig;}, 2500); }
   };
 })();
+// Updates are handled natively by the desktop app (Tauri updater + File ▸ Check
+// for Updates…). The web/Pages build has no in-page update banner.
 // Sync: pull the LIVE store listing into the Current tab via the /api/sync backend.
 (function(){
   const btn=document.getElementById('syncBtn'); if(!btn) return;

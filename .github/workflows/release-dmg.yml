@@ -60,6 +60,24 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          # Tauri updater signing (signs the .app.tar.gz → .sig for auto-update).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # Build the updater manifest (latest.json) from the signed .app.tar.gz.
+      - name: Generate updater manifest
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          B=desktop/src-tauri/target/release/bundle/macos
+          SIG_FILE="$B/AppPreview.app.tar.gz.sig"
+          if [ ! -f "$SIG_FILE" ]; then echo "no updater .sig (TAURI_SIGNING_PRIVATE_KEY unset?) — skipping"; exit 0; fi
+          VER=$(python3 -c "import json;print(json.load(open('desktop/src-tauri/tauri.conf.json'))['version'])")
+          SIG=$(cat "$SIG_FILE")
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/AppPreview.app.tar.gz"
+          PUB=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          python3 -c 'import json,sys; v,p,u,s,o=sys.argv[1:6]; open(o,"w").write(json.dumps({"version":v,"pub_date":p,"platforms":{"darwin-aarch64":{"signature":s,"url":u}}},indent=2))' "$VER" "$PUB" "$URL" "$SIG" "$RUNNER_TEMP/latest.json"
+          echo "LATEST_JSON=$RUNNER_TEMP/latest.json" >> "$GITHUB_ENV"
+          echo "wrote latest.json for v$VER"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -72,8 +90,14 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: desktop/src-tauri/target/release/bundle/dmg/*.dmg
-          fail_on_unmatched_files: true
+          # .dmg (manual download) + .app.tar.gz + .sig + latest.json (auto-updater)
+          files: |
+            desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/release/bundle/macos/AppPreview.app.tar.gz
+            desktop/src-tauri/target/release/bundle/macos/AppPreview.app.tar.gz.sig
+            ${{ env.LATEST_JSON }}
+          fail_on_unmatched_files: false
           body: |
             App Preview — macOS desktop build.
-            Unsigned: on first launch, right-click the app → **Open** if Gatekeeper warns.
+            Auto-update enabled (Tauri updater). Unsigned by Apple: on first launch,
+            right-click the app → **Open** if Gatekeeper warns.

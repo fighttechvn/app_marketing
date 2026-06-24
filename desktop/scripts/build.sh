@@ -21,6 +21,12 @@ if [ -f .signing/signing.env ]; then
 else
   echo "→ no .signing/signing.env — building UNSIGNED (ad-hoc). See .signing/signing.env.example"
 fi
+# Updater signing key (createUpdaterArtifacts=true → tauri signs the .app.tar.gz).
+if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ] && [ -f .signing/updater.key ]; then
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat .signing/updater.key)"
+  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+  echo "→ updater signing key loaded (.signing/updater.key)"
+fi
 
 # 1) App icons (from the template's app-icon.svg → png → tauri icon set).
 if [ ! -f src-tauri/icons/icon.icns ]; then

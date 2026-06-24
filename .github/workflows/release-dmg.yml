@@ -25,7 +25,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Python (for the PyInstaller sidecar)
         uses: actions/setup-python@v5

@@ -285,6 +285,7 @@
     <button data-variant="new" class="active">New ⬆</button>
     <button data-variant="current">Current</button>
   </div>
+  <button class="toggle" id="openDirBtn" title="Open a project folder — auto-check its .env + assets and load it (calls /api/open)">📁 Open folder</button>
   <button class="toggle hidden" id="tryTplBtn" title="Fill the New variant with the bundled demo template (copies assets/template → assets/new)">✨ Try template</button>
   <button class="toggle" id="syncBtn" title="Pull the live listing from App Store + Google Play into the Current tab (calls /api/sync)">⟳ Sync</button>
   <button class="toggle" id="submitBtn" title="Preview the diff between Current (live on store) and New (pending) before submitting">Review Diff</button>
@@ -1113,6 +1114,39 @@ async function loadVariant(v, bust){
 document.querySelectorAll('#variantSeg button').forEach(b=>{
   b.onclick=()=>loadVariant(b.dataset.variant);
 });
+// Open folder: point the server at a project folder; it auto-checks .env + assets
+// + listings, switches root, and we reload the listing. (calls /api/open)
+(function(){
+  const btn=document.getElementById('openDirBtn'); if(!btn) return;
+  // show the active root in the placeholder
+  let cur='';
+  fetch('/api/scan').then(r=>r.json()).then(d=>{ if(d&&d.ok) cur=d.root; }).catch(()=>{});
+  btn.onclick=async()=>{
+    const path=prompt('Open a store-preview project folder (absolute path):', cur||'');
+    if(!path) return;
+    const orig=btn.textContent; btn.disabled=true; btn.textContent='📁 Opening…';
+    try{
+      const r=await fetch('/api/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path})});
+      const j=await r.json();
+      if(!j.ok) throw new Error(j.error||'open failed');
+      cur=j.root;
+      SCAFFOLD=null; NEW_CACHE=null;
+      await loadVariant('new', Date.now());
+      btn.textContent='✓ Opened';
+      const a=j.assets||{}, c=j.creds||{};
+      if(typeof toast==='function') toast(
+        `Opened ${j.root} — env: ${j.hasEnv?(j.envKeys.length+' keys'):'none'}`
+        +` (ASC ${c.appstore?'✓':'✗'}, Play ${c.googleplay?'✓':'✗'})`
+        +` · assets new/current/template ${a.new||0}/${a.current||0}/${a.template||0}`);
+    }catch(e){
+      btn.textContent='✗ Failed';
+      if(typeof toast==='function') toast('Open folder failed (run serve.py): '+e.message); else alert(e.message);
+      console.error(e);
+    }finally{
+      setTimeout(()=>{btn.disabled=false; btn.textContent=orig;}, 2500);
+    }
+  };
+})();
 // Sync: pull the LIVE store listing into the Current tab via the /api/sync backend.
 (function(){
   const btn=document.getElementById('syncBtn'); if(!btn) return;

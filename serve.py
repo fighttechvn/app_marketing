@@ -31,11 +31,13 @@ def _play_sa():
 # SP_ROOT lets a packaged build (Tauri desktop sidecar) point the server at a
 # writable data dir instead of the read-only app bundle. Defaults to this folder.
 HERE = os.environ.get("SP_ROOT") or os.path.dirname(os.path.abspath(__file__))
+# ROOT is the active project folder — switchable at runtime via /api/open ("Open
+# folder"). Derived paths read it at call time so a switch takes effect live.
+ROOT = HERE
 PORT = int(os.environ.get("PORT") or (sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else "8092"))
-CUR = os.path.join(HERE, "assets", "current")
-# Umbrella site mounts (template only; canonical has neither → falls back to the tool at /).
-HOME = os.path.join(HERE, "home.html")            # landing page at "/"
-DOCS_DIST = os.path.join(HERE, "docs", "dist")     # built Astro docs at "/docs/"
+def cur():       return os.path.join(ROOT, "assets", "current")
+def home_html(): return os.path.join(ROOT, "home.html")     # landing (umbrella only)
+def docs_dist(): return os.path.join(ROOT, "docs", "dist")  # built docs (umbrella only)
 LABELS = {1: "Discover hub", 2: "go2048", 3: "Zip", 4: "Patch", 5: "Sudoku"}
 
 def num(s):
@@ -44,8 +46,8 @@ def num(s):
 
 # ---- credentials (.app_dist/.env.prod with ${APP_DIST} expansion) ----
 def load_creds():
-    local = _parse_env(os.path.join(HERE, ".env"))
-    dist = os.path.abspath(os.path.join(HERE, local.get("APP_DIST") or os.environ.get("APP_DIST", "../../.app_dist")))
+    local = _parse_env(os.path.join(ROOT, ".env"))
+    dist = os.path.abspath(os.path.join(ROOT, local.get("APP_DIST") or os.environ.get("APP_DIST", "../../.app_dist")))
     os.environ["APP_DIST"] = dist
     # local .env first (imported creds, incl *_B64), then .app_dist/.env.prod overrides.
     for k, v in local.items():
@@ -111,7 +113,7 @@ def fetch_appstore():
                 scale = 520.0 / w
                 url = asset["templateUrl"].replace("{w}", str(int(w*scale))).replace("{h}", str(int(h*scale))).replace("{f}", "png")
                 fn = f"{gal}-0{i}.png"
-                _download(url, os.path.join(CUR, fn))
+                _download(url, os.path.join(cur(), fn))
                 out[gal].append({"file": f"assets/current/{fn}", "label": LABELS.get(i, ""),
                                  "size": f"{w}×{h}"})
     return out
@@ -137,7 +139,7 @@ def fetch_play():
             imgs = svc.edits().images().list(packageName=pkg, editId=eid, language=lang, imageType="phoneScreenshots").execute().get("images", [])
             for i, im in enumerate(imgs, 1):
                 fn = f"phone-0{i}.png"
-                _download(im["url"], os.path.join(CUR, fn))
+                _download(im["url"], os.path.join(cur(), fn))
                 out["phone"].append({"file": f"assets/current/{fn}", "label": LABELS.get(i, ""), "size": "phone"})
     svc.edits().delete(packageName=pkg, editId=eid).execute()
     return out
@@ -149,11 +151,11 @@ def _download(url, dest):
 
 def sync():
     load_creds()
-    os.makedirs(CUR, exist_ok=True)
+    os.makedirs(cur(), exist_ok=True)
     # clear old current gallery images
-    for f in os.listdir(CUR):
+    for f in os.listdir(cur()):
         if re.match(r"(iphone|ipad|phone)-\d+\.png$", f):
-            os.remove(os.path.join(CUR, f))
+            os.remove(os.path.join(cur(), f))
     a = fetch_appstore()
     p = fetch_play()
     LOC_DISPLAY = {"en-US": "English (US)", "vi": "Tiếng Việt", "ko": "한국어", "zh": "中文", "ja": "日本語", "ar": "العربية"}
@@ -192,7 +194,7 @@ def sync():
         "graphics": {"appIcon": {"status": "uploaded", "spec": "Play 512×512 · App Store 1024×1024", "file": "assets/icon.png", "size": "512×512"},
                       "featureGraphic": {"status": "uploaded", "spec": "Play 1024×500", "file": "assets/feature-graphic.png", "size": "1024×500"}},
     }
-    with open(os.path.join(HERE, "listing-current.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(ROOT, "listing-current.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return {"ok": True, "appstore": {"iphone": len(a["iphone"]), "ipad": len(a["ipad"])},
             "googleplay": {"phone": len(p["phone"])}, "locales": locs, "versionName": a.get("versionName", "")}
@@ -275,11 +277,11 @@ def test_creds(text):
 # ---- Try template: copy the bundled demo (assets/template + listing-template.json)
 # into the editable "New" variant (assets/new + listing.json) ----
 def apply_template():
-    tj = os.path.join(HERE, "listing-template.json")
+    tj = os.path.join(ROOT, "listing-template.json")
     if not os.path.exists(tj):
         return {"ok": False, "error": "no listing-template.json bundled"}
-    src = os.path.join(HERE, "assets", "template")
-    dst = os.path.join(HERE, "assets", "new")
+    src = os.path.join(ROOT, "assets", "template")
+    dst = os.path.join(ROOT, "assets", "new")
     os.makedirs(dst, exist_ok=True)
     for f in os.listdir(dst):                       # clear any existing New screenshots
         p = os.path.join(dst, f)
@@ -292,7 +294,7 @@ def apply_template():
                 shutil.copy2(sp, os.path.join(dst, f)); copied += 1
     # listing.json points at assets/new (template content rebased from assets/template)
     data = open(tj, encoding="utf-8").read().replace("assets/template/", "assets/new/")
-    with open(os.path.join(HERE, "listing.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(ROOT, "listing.json"), "w", encoding="utf-8") as f:
         f.write(data)
     return {"ok": True, "copied": copied}
 
@@ -307,8 +309,8 @@ def env_dump():
     """RAW values for ONLY the ASC/Play API keys the Sync button needs, so the
     Export ▸ Env tab can write a minimal self-contained .env. File-content keys
     (.p8, service-account JSON) are emitted base64 on a single line. Localhost only."""
-    local = _parse_env(os.path.join(HERE, ".env"))
-    dist = os.path.abspath(os.path.join(HERE, local.get("APP_DIST") or os.environ.get("APP_DIST", "../../.app_dist")))
+    local = _parse_env(os.path.join(ROOT, ".env"))
+    dist = os.path.abspath(os.path.join(ROOT, local.get("APP_DIST") or os.environ.get("APP_DIST", "../../.app_dist")))
     os.environ["APP_DIST"] = dist
     prod = _parse_env(os.path.join(dist, ".env.prod"))
     merged = {}
@@ -330,23 +332,67 @@ def env_dump():
     return {"ok": True, "env": merged, "appDist": dist,
             "hasProd": os.path.exists(os.path.join(dist, ".env.prod"))}
 
+# ---- Open folder: scan a project dir for .env + assets + listings ----
+def _count_dir(p):
+    return len([f for f in os.listdir(p)]) if os.path.isdir(p) else 0
+
+def scan(path=None):
+    """Auto-check a project folder: which env keys are filled, how many assets,
+    which listing files exist. `path=None` scans the active ROOT."""
+    p = os.path.abspath(os.path.expanduser(path or ROOT))
+    # Merge the folder's .env with its .app_dist/.env.prod (same as Sync), so the
+    # cred check reflects whether Sync would actually authenticate.
+    env = _parse_env(os.path.join(p, ".env"))
+    dist = os.path.abspath(os.path.join(p, env.get("APP_DIST") or os.environ.get("APP_DIST", "../../.app_dist")))
+    prod = _parse_env(os.path.join(dist, ".env.prod"))
+    env = {**env, **prod}
+    asc_ok = bool(env.get("ASC_KEY_ID") and env.get("ASC_ISSUER_ID")
+                  and (env.get("ASC_KEY_P8") or env.get("ASC_KEY_P8_B64")))
+    play_ok = bool(env.get("PLAYSTORE_PACKAGE_NAME")
+                   and (env.get("PLAYSTORE_SERVICE_ACCOUNT_JSON") or env.get("PLAYSTORE_SERVICE_ACCOUNT_JSON_B64")))
+    a = os.path.join(p, "assets")
+    return {
+        "root": p,
+        "exists": os.path.isdir(p),
+        "hasEnv": bool(env),
+        "envKeys": [k for k in env if k in SYNC_KEYS or k in FILE_B64.values()],
+        "creds": {"appstore": asc_ok, "googleplay": play_ok},
+        "assets": {"template": _count_dir(os.path.join(a, "template")),
+                   "new": _count_dir(os.path.join(a, "new")),
+                   "current": _count_dir(os.path.join(a, "current"))},
+        "listings": {n: os.path.exists(os.path.join(p, n + ".json"))
+                     for n in ("listing", "listing-current", "listing-template")},
+    }
+
+def open_folder(path):
+    """Switch the active ROOT to `path` (so serving + listings + assets + .env +
+    Sync all come from it), then return the scan report."""
+    global ROOT
+    p = os.path.abspath(os.path.expanduser(path))
+    if not os.path.isdir(p):
+        return {"ok": False, "error": f"not a folder: {p}"}
+    if not (os.path.exists(os.path.join(p, "index.html")) or os.path.exists(os.path.join(p, "listing.json"))):
+        return {"ok": False, "error": f"no store-preview project here (need index.html or listing.json): {p}"}
+    ROOT = p
+    return {"ok": True, **scan(p)}
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kw):
-        super().__init__(*args, directory=HERE, **kw)
+        super().__init__(*args, directory=ROOT, **kw)
     def translate_path(self, path):
         # Umbrella routing: / → landing, /docs/ → built Astro, /Playground/ → the
         # store-preview tool, everything else → the tool dir. Each mount is guarded
         # by existence so the canonical (tool-only) deploy still serves "/" = tool.
         p = urllib.parse.unquote(urllib.parse.urlparse(path).path)
-        if p in ("/", "") and os.path.exists(HOME):
-            return HOME
-        if (p == "/docs" or p.startswith("/docs/")) and os.path.isdir(DOCS_DIST):
+        if p in ("/", "") and os.path.exists(home_html()):
+            return home_html()
+        if (p == "/docs" or p.startswith("/docs/")) and os.path.isdir(docs_dist()):
             rest = p[len("/docs"):].lstrip("/")
-            return os.path.join(DOCS_DIST, *rest.split("/")) if rest else DOCS_DIST
+            return os.path.join(docs_dist(), *rest.split("/")) if rest else docs_dist()
         low = p.lower()
         if low == "/playground" or low.startswith("/playground/"):
             rest = p[len("/playground"):].lstrip("/")
-            return os.path.join(HERE, *rest.split("/")) if rest else HERE
+            return os.path.join(ROOT, *rest.split("/")) if rest else ROOT
         return super().translate_path(path)
     def _json(self, code, obj):
         body = json.dumps(obj).encode()
@@ -361,6 +407,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try: self._json(200, sync())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
+        if route == "/api/scan":
+            # auto-check the active root (or ?path=…) without switching
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                self._json(200, {"ok": True, **scan((q.get("path") or [None])[0])})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
         if route == "/api/env":
             try: self._json(200, env_dump())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
@@ -368,6 +421,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
     def do_POST(self):
         route = self.path.split("?")[0]
+        if route == "/api/open":
+            # Switch the active project folder; body = {"path": "..."}.
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+                self._json(200, open_folder(body.get("path", "")))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
         if route == "/api/apply-template":
             try: self._json(200, apply_template())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
@@ -389,7 +450,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 n = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(n).decode("utf-8")
                 force = "force=1" in (self.path.split("?", 1)[1] if "?" in self.path else "")
-                dest = os.path.join(HERE, ".env")
+                dest = os.path.join(ROOT, ".env")
                 existed = os.path.exists(dest)
                 if existed and not force:
                     self._json(200, {"ok": True, "saved": False, "existed": True, "path": dest})

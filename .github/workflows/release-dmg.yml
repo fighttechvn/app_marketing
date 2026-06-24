@@ -98,6 +98,8 @@ jobs:
             ${{ env.LATEST_JSON }}
           fail_on_unmatched_files: false
           body: |
-            App Preview — macOS desktop build.
-            Auto-update enabled (Tauri updater). Unsigned by Apple: on first launch,
-            right-click the app → **Open** if Gatekeeper warns.
+            App Preview — macOS desktop build. Auto-update enabled (Tauri updater).
+
+            Not notarized by Apple → macOS may say "AppPreview is damaged". To open:
+            `xattr -dr com.apple.quarantine "/Applications/AppPreview.app"` then launch.
+            (Right-click → Open does NOT fix "damaged".)

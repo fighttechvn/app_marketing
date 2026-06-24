@@ -95,9 +95,11 @@ To ship an update: bump `version` in `tauri.conf.json`, push a new `desktop-v*` 
 - **Heavy deps** (`cryptography`, `google-api-python-client`) are pulled in with
   PyInstaller `--collect-all` flags. After building, open the app and run **Test
   keys** to confirm the bundled Python can reach both store APIs.
-- **Code signing / notarization** is required to run on other Macs without a
-  Gatekeeper warning — set the Apple signing env for `tauri build`, or right-click
-  → Open. See the Tauri macOS distribution docs.
+- **"AppPreview is damaged and can't be opened"** — this is Gatekeeper blocking an
+  un-notarized download (quarantine), not a real corruption. Fix:
+  `xattr -dr com.apple.quarantine "/Applications/AppPreview.app"` then open.
+  Right-click → Open does **not** clear "damaged". The permanent fix is to
+  **sign (Developer ID) + notarize** — see [Code signing & notarization](#code-signing--notarization).
 - The window only appears after the sidecar prints `READY`; a loading splash shows
   meanwhile.
 

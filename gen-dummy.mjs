@@ -8,8 +8,13 @@
  *
  *     node gen-dummy.mjs
  *
- * Writes: assets/{phone,iphone,tablet,ipad}-NN.svg, app-icon.svg,
- *         feature-graphic.svg — matching the paths in listing.json.
+ * Writes the bundled DEMO template:
+ *   assets/template/{phone,iphone,tablet,ipad}-NN.svg ← demo screenshots
+ *   assets/app-icon.svg, assets/feature-graphic.svg   ← shared graphics (root)
+ * matching the paths in listing-template.json. Both "New" and "Current" start
+ * EMPTY (placeholders): New is filled by the "✨ Try template" button (copies
+ * assets/template → assets/new) or your own screenshots; Current comes from the
+ * live store via ⟳ Sync.
  * No dependencies (Node >= 16, ESM).
  * ======================================================================== */
 
@@ -19,7 +24,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const OUT = join(ROOT, 'assets');
-mkdirSync(OUT, { recursive: true });
+const OUT_TPL = join(OUT, 'template');
+mkdirSync(OUT_TPL, { recursive: true });
 
 /* ---- palette (kept in sync with the app icon) ---------------------------- */
 const C = {
@@ -331,7 +337,7 @@ function featureGraphic() {
 `;
 }
 
-/* ---- catalogue (must match listing.json) -------------------------------- */
+/* ---- catalogue — demo template set (must match listing-template.json) ---- */
 const JOBS = [
   ['phone-01.svg', 'Today', 1080, 2400, 0],
   ['phone-02.svg', 'Workouts', 1080, 2400, 1],
@@ -351,9 +357,10 @@ const JOBS = [
 ];
 
 for (const [file, label, w, h, tab] of JOBS) {
-  writeFileSync(join(OUT, file), screen(label, w, h, tab));
+  writeFileSync(join(OUT_TPL, file), screen(label, w, h, tab));
 }
 writeFileSync(join(OUT, 'app-icon.svg'), appIcon());
 writeFileSync(join(OUT, 'feature-graphic.svg'), featureGraphic());
 
-console.log(`Wrote ${JOBS.length} screenshots + app-icon.svg + feature-graphic.svg to ${OUT}`);
+console.log(`Wrote ${JOBS.length} template screenshots`
+  + ` + app-icon.svg + feature-graphic.svg under ${OUT_TPL}`);

@@ -10,7 +10,7 @@ Creds come from .app_dist/.env.prod (path via APP_DIST), same as the fastlane
 lanes: ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_P8, PLAYSTORE_SERVICE_ACCOUNT_JSON,
 PLAYSTORE_PACKAGE_NAME, BUNDLE_ID.
 """
-import os, sys, json, time, re, base64, shutil, http.server, urllib.request, urllib.error
+import os, sys, json, time, re, base64, shutil, http.server, urllib.request, urllib.error, urllib.parse
 
 # File-content env keys: exported base64 (single line) so the .env is self-contained
 # (no need to copy the .p8 / service-account JSON separately). Decoded on use.
@@ -28,9 +28,14 @@ def _play_sa():
     if b64: return json.loads(base64.b64decode(b64).decode("utf-8")), None
     return None, os.environ.get("PLAYSTORE_SERVICE_ACCOUNT_JSON")
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-PORT = int(os.environ.get("PORT") or (sys.argv[1] if len(sys.argv) > 1 else "8092"))
+# SP_ROOT lets a packaged build (Tauri desktop sidecar) point the server at a
+# writable data dir instead of the read-only app bundle. Defaults to this folder.
+HERE = os.environ.get("SP_ROOT") or os.path.dirname(os.path.abspath(__file__))
+PORT = int(os.environ.get("PORT") or (sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else "8092"))
 CUR = os.path.join(HERE, "assets", "current")
+# Umbrella site mounts (template only; canonical has neither → falls back to the tool at /).
+HOME = os.path.join(HERE, "home.html")            # landing page at "/"
+DOCS_DIST = os.path.join(HERE, "docs", "dist")     # built Astro docs at "/docs/"
 LABELS = {1: "Discover hub", 2: "go2048", 3: "Zip", 4: "Patch", 5: "Sudoku"}
 
 def num(s):
@@ -328,6 +333,21 @@ def env_dump():
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kw):
         super().__init__(*args, directory=HERE, **kw)
+    def translate_path(self, path):
+        # Umbrella routing: / → landing, /docs/ → built Astro, /Playground/ → the
+        # store-preview tool, everything else → the tool dir. Each mount is guarded
+        # by existence so the canonical (tool-only) deploy still serves "/" = tool.
+        p = urllib.parse.unquote(urllib.parse.urlparse(path).path)
+        if p in ("/", "") and os.path.exists(HOME):
+            return HOME
+        if (p == "/docs" or p.startswith("/docs/")) and os.path.isdir(DOCS_DIST):
+            rest = p[len("/docs"):].lstrip("/")
+            return os.path.join(DOCS_DIST, *rest.split("/")) if rest else DOCS_DIST
+        low = p.lower()
+        if low == "/playground" or low.startswith("/playground/"):
+            rest = p[len("/playground"):].lstrip("/")
+            return os.path.join(HERE, *rest.split("/")) if rest else HERE
+        return super().translate_path(path)
     def _json(self, code, obj):
         body = json.dumps(obj).encode()
         self.send_response(code)
@@ -384,8 +404,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
-if __name__ == "__main__":
+def run():
     # Bind localhost only — /api/env and /api/sync expose store credentials,
-    # so never serve them on 0.0.0.0 / the LAN.
-    print(f"→ store-preview server (/api/sync, /api/env) on http://localhost:{PORT}/")
-    http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    # so never serve them on 0.0.0.0 / the LAN. PORT=0 lets the OS pick a free
+    # port (used by the desktop sidecar, which reads the actual port from stdout).
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    actual = httpd.server_address[1]
+    print(f"READY http://127.0.0.1:{actual}/", flush=True)   # parsed by the Tauri shell
+    print(f"→ store-preview server (/api/sync, /api/env) on http://localhost:{actual}/")
+    httpd.serve_forever()
+
+if __name__ == "__main__":
+    run()

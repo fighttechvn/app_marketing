@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App Preview</title>
+<meta name="description" content="Load screenshots & metadata from the App Store and Google Play via API key, preview your new version, run the first-release checklist, and audit store SEO.">
+<script>
+/* set theme + language before paint (no flash) */
+(function(){
+  var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  document.documentElement.dataset.theme=t;
+  var l=localStorage.getItem('lang');
+  if(!l){var n=(navigator.language||'en').slice(0,2);l=['en','vi','ko','ar','ja'].indexOf(n)>=0?n:'en';}
+  document.documentElement.lang=l; if(l==='ar')document.documentElement.dir='rtl';
+})();
+</script>
+<style>
+  :root{ --bg:#ffffff; --panel:#ffffff; --line:#e5e7eb; --text:#111418; --muted:#5f6672;
+         --accent:#0a84ff; --soft:#f5f6f8; --shadow:rgba(17,20,24,.08); --radius:14px; }
+  :root[data-theme="dark"]{ --bg:#0d0f12; --panel:#14171c; --line:#262b33; --text:#e7e9ee;
+         --muted:#9aa1ad; --accent:#4c9bff; --soft:#1a1e24; --shadow:rgba(0,0,0,.5); }
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg)}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0;border-bottom:1px solid var(--line)}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:700}
+  .logo .mark{width:32px;height:32px;border-radius:8px;background:var(--soft);border:1px solid var(--line);display:grid;place-items:center;font-size:17px}
+  .hnav{display:flex;align-items:center;gap:18px}
+  .hnav a{color:var(--muted);font-weight:500}
+  .hnav a:hover{color:var(--text)}
+  .ctrls{display:flex;align-items:center;gap:8px}
+  .ctrls select,.ctrls button{font:13px inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer}
+  .ctrls button{width:34px}
+  .hero{padding:60px 0 32px;text-align:center}
+  .hero h1{font-size:clamp(30px,5.2vw,50px);line-height:1.12;margin:0 0 18px;letter-spacing:-.02em}
+  .hero p{font-size:clamp(15px,2.1vw,19px);color:var(--muted);max-width:660px;margin:0 auto 28px}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .btn{padding:12px 24px;border-radius:10px;font-weight:600;border:1px solid var(--line);cursor:pointer;font-size:15px;background:var(--panel);color:var(--text)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn:hover{border-color:var(--accent)}
+  .showcase{padding:4px 0 16px}
+  .browser{max-width:900px;margin:0 auto;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:0 14px 36px var(--shadow)}
+  .browser .bar{display:flex;align-items:center;gap:7px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--soft)}
+  .browser .dot{width:11px;height:11px;border-radius:50%;background:var(--line)}
+  .browser .url{margin-inline-start:10px;font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 11px}
+  .demo-vp{width:100%;overflow:hidden;background:var(--bg);direction:ltr}
+  .browser iframe.demo{display:block;border:0;background:var(--bg);transform-origin:top left;width:1280px;height:880px}
+  .cap{text-align:center;color:var(--muted);font-size:13px;margin:14px 0 0}
+  .cap a{color:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;padding:24px 0 44px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .card .ic{width:38px;height:38px;border-radius:9px;background:var(--soft);border:1px solid var(--line);display:grid;place-items:center;font-size:20px;margin-bottom:12px}
+  .card h3{margin:0 0 6px;font-size:16px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .steps{border-top:1px solid var(--line);padding:34px 0}
+  .steps h2{font-size:20px;margin:0 0 18px;text-align:center}
+  .steps ol{max-width:640px;margin:0 auto;padding-inline-start:20px;color:var(--muted)}
+  .steps li{margin:8px 0}
+  .links{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:8px 0 44px}
+  .chip{border:1px solid var(--line);border-radius:8px;padding:6px 13px;color:var(--muted);font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .chip:hover{color:var(--text);border-color:var(--accent)}
+  footer{border-top:1px solid var(--line);padding:22px 0;color:var(--muted);font-size:13px;text-align:center}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:.9em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><span class="mark">🧠</span> App Preview</div>
+    <div class="hnav">
+      <a href="/playground/" data-i18n="nav_playground">Playground</a>
+      <a href="/docs/" data-i18n="nav_docs">Docs</a>
+      <a href="/docs/blog/" data-i18n="nav_blog">Blog</a>
+      <div class="ctrls">
+        <select id="lang" aria-label="Language">
+          <option value="en">English</option>
+          <option value="vi">Tiếng Việt</option>
+          <option value="ko">한국어</option>
+          <option value="ar">العربية</option>
+          <option value="ja">日本語</option>
+        </select>
+        <button id="themeBtn" aria-label="Toggle theme">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1 data-i18n="hero_title">Preview your store listing before you ship it.</h1>
+    <p data-i18n="hero_sub">Load live screenshots &amp; metadata from the App Store and Google Play with your API keys, preview your new version, run the first-release checklist, and audit your store SEO — all from one local page.</p>
+    <div class="cta">
+      <a class="btn primary" href="/playground/" data-i18n="cta_open">Open Playground</a>
+      <a class="btn" href="/docs/guides/setup/" data-i18n="cta_docs">Read the docs</a>
+    </div>
+  </section>
+
+  <section class="showcase">
+    <div class="browser">
+      <div class="bar">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="url">localhost:8092/playground/</span>
+      </div>
+      <div class="demo-vp">
+        <iframe class="demo" src="/playground/"
+                title="App Preview — live Playground"
+                loading="lazy"></iframe>
+      </div>
+    </div>
+    <p class="cap" data-i18n-html="demo_cap">Live demo — open the <a href="/playground/">Playground</a> to load your own store data.</p>
+  </section>
+
+  <section class="grid">
+    <div class="card"><div class="ic">📥</div><h3 data-i18n="f1_t">Load from the stores</h3><p data-i18n="f1_d">Pull screenshots and metadata text from App Store Connect and Google Play using your API keys.</p></div>
+    <div class="card"><div class="ic">📱</div><h3 data-i18n="f2_t">Preview new version</h3><p data-i18n="f2_d">See exactly how your New version looks on the App Store and Google Play before you upload.</p></div>
+    <div class="card"><div class="ic">✅</div><h3 data-i18n="f3_t">First-release checklist</h3><p data-i18n="f3_d">A built-in checklist that covers everything required for a first store submission.</p></div>
+    <div class="card"><div class="ic">🔎</div><h3 data-i18n="f4_t">Store SEO audit</h3><p data-i18n="f4_d">ASO checks for mobile store listings — title, subtitle, and keyword limits and tips.</p></div>
+  </section>
+
+  <section class="steps">
+    <h2 data-i18n="how_h2">How it works</h2>
+    <ol>
+      <li data-i18n="step1">Load live data from App Store Connect + Google Play with your API keys (or Try template).</li>
+      <li data-i18n="step2">Preview the New version for both stores and tweak text &amp; screenshots.</li>
+      <li data-i18n="step3">Review Diff New → Current, run the first-release checklist and SEO audit.</li>
+      <li data-i18n="step4">Verify keys against the live APIs, then submit with confidence.</li>
+    </ol>
+  </section>
+
+  <section class="links">
+    <a class="chip" href="/">/</a>
+    <a class="chip" href="/playground/">/playground/</a>
+    <a class="chip" href="/docs/">/docs/</a>
+    <a class="chip" href="/docs/guides/setup/">/docs/guides/setup/</a>
+    <a class="chip" href="/docs/reference/env-variables/">/docs/reference/env-variables/</a>
+    <a class="chip" href="/docs/api/">/docs/api/</a>
+    <a class="chip" href="/docs/blog/">/docs/blog/</a>
+  </section>
+</div>
+<footer data-i18n-html="footer">App Preview · run <code>./run.sh</code> to serve this site locally</footer>
+
+<script>
+const I18N = {
+  en:{nav_playground:"Playground",nav_docs:"Docs",nav_blog:"Blog",
+    hero_title:"Preview your store listing before you ship it.",
+    hero_sub:"Load live screenshots & metadata from the App Store and Google Play with your API keys, preview your new version, run the first-release checklist, and audit your store SEO — all from one local page.",
+    cta_open:"Open Playground",cta_docs:"Read the docs",
+    demo_cap:'Live demo — open the <a href="/playground/">Playground</a> to load your own store data.',
+    f1_t:"Load from the stores",f1_d:"Pull screenshots and metadata text from App Store Connect and Google Play using your API keys.",
+    f2_t:"Preview new version",f2_d:"See exactly how your New version looks on the App Store and Google Play before you upload.",
+    f3_t:"First-release checklist",f3_d:"A built-in checklist that covers everything required for a first store submission.",
+    f4_t:"Store SEO audit",f4_d:"ASO checks for mobile store listings — title, subtitle, and keyword limits and tips.",
+    how_h2:"How it works",
+    step1:"Load live data from App Store Connect + Google Play with your API keys (or Try template).",
+    step2:"Preview the New version for both stores and tweak text & screenshots.",
+    step3:"Review Diff New → Current, run the first-release checklist and SEO audit.",
+    step4:"Verify keys against the live APIs, then submit with confidence.",
+    footer:'App Preview · run <code>./run.sh</code> to serve this site locally'},
+  vi:{nav_playground:"Playground",nav_docs:"Tài liệu",nav_blog:"Blog",
+    hero_title:"Xem trước store listing trước khi phát hành.",
+    hero_sub:"Tải screenshot & metadata trực tiếp từ App Store và Google Play bằng API key, xem trước phiên bản mới, chạy checklist phát hành lần đầu và audit SEO store — tất cả trên một trang local.",
+    cta_open:"Mở Playground",cta_docs:"Đọc tài liệu",
+    demo_cap:'Demo trực tiếp — mở <a href="/playground/">Playground</a> để tải dữ liệu store của bạn.',
+    f1_t:"Tải từ store",f1_d:"Tải screenshot và metadata từ App Store Connect và Google Play bằng API key.",
+    f2_t:"Xem trước phiên bản mới",f2_d:"Xem chính xác phiên bản mới hiển thị thế nào trên App Store và Google Play trước khi upload.",
+    f3_t:"Checklist phát hành lần đầu",f3_d:"Checklist tích hợp bao quát mọi yêu cầu cho lần submit đầu tiên.",
+    f4_t:"Audit SEO store",f4_d:"Kiểm tra ASO cho store mobile — giới hạn title, subtitle, keyword và gợi ý.",
+    how_h2:"Cách hoạt động",
+    step1:"Tải dữ liệu trực tiếp từ App Store Connect + Google Play bằng API key (hoặc Try template).",
+    step2:"Xem trước phiên bản mới cho cả hai store và chỉnh text & screenshot.",
+    step3:"So sánh Diff New → Current, chạy checklist phát hành và audit SEO.",
+    step4:"Xác thực key với API live, rồi submit tự tin.",
+    footer:'App Preview · chạy <code>./run.sh</code> để serve site cục bộ'},
+  ko:{nav_playground:"Playground",nav_docs:"문서",nav_blog:"블로그",
+    hero_title:"출시 전에 스토어 등록정보를 미리 보세요.",
+    hero_sub:"API 키로 App Store와 Google Play의 스크린샷·메타데이터를 불러오고, 새 버전을 미리 보고, 첫 출시 체크리스트를 실행하고, 스토어 SEO를 점검하세요 — 모두 로컬 페이지 하나에서.",
+    cta_open:"Playground 열기",cta_docs:"문서 읽기",
+    demo_cap:'라이브 데모 — <a href="/playground/">Playground</a>를 열어 내 스토어 데이터를 불러오세요.',
+    f1_t:"스토어에서 불러오기",f1_d:"API 키로 App Store Connect와 Google Play에서 스크린샷과 메타데이터를 가져옵니다.",
+    f2_t:"새 버전 미리보기",f2_d:"업로드 전에 새 버전이 App Store와 Google Play에서 어떻게 보이는지 확인합니다.",
+    f3_t:"첫 출시 체크리스트",f3_d:"첫 제출에 필요한 모든 항목을 다루는 내장 체크리스트.",
+    f4_t:"스토어 SEO 점검",f4_d:"모바일 스토어 ASO 점검 — 제목·부제·키워드 길이 제한과 팁.",
+    how_h2:"작동 방식",
+    step1:"API 키로 App Store Connect + Google Play에서 라이브 데이터를 불러옵니다 (또는 Try template).",
+    step2:"두 스토어의 새 버전을 미리 보고 텍스트와 스크린샷을 수정합니다.",
+    step3:"New → Current 차이를 검토하고 출시 체크리스트와 SEO 점검을 실행합니다.",
+    step4:"라이브 API로 키를 확인한 뒤 자신 있게 제출합니다.",
+    footer:'App Preview · 로컬에서 서빙하려면 <code>./run.sh</code> 실행'},
+  ar:{nav_playground:"Playground",nav_docs:"المستندات",nav_blog:"المدونة",
+    hero_title:"عاين صفحة متجرك قبل النشر.",
+    hero_sub:"حمّل لقطات الشاشة والبيانات الوصفية مباشرة من App Store وGoogle Play باستخدام مفاتيح API، وعاين الإصدار الجديد، ونفّذ قائمة التحقق للإصدار الأول، ودقّق تحسين متجرك — كل ذلك من صفحة محلية واحدة.",
+    cta_open:"افتح Playground",cta_docs:"اقرأ المستندات",
+    demo_cap:'عرض حي — افتح <a href="/playground/">Playground</a> لتحميل بيانات متجرك.',
+    f1_t:"تحميل من المتاجر",f1_d:"اسحب لقطات الشاشة والبيانات الوصفية من App Store Connect وGoogle Play باستخدام مفاتيح API.",
+    f2_t:"معاينة الإصدار الجديد",f2_d:"شاهد كيف يبدو إصدارك الجديد على App Store وGoogle Play قبل الرفع.",
+    f3_t:"قائمة التحقق للإصدار الأول",f3_d:"قائمة تحقق مدمجة تغطي كل ما يلزم لأول إرسال للمتجر.",
+    f4_t:"تدقيق SEO للمتجر",f4_d:"فحوصات ASO لقوائم المتاجر — حدود العنوان والعنوان الفرعي والكلمات المفتاحية ونصائح.",
+    how_h2:"كيف يعمل",
+    step1:"حمّل البيانات الحية من App Store Connect وGoogle Play بمفاتيح API (أو Try template).",
+    step2:"عاين الإصدار الجديد لكلا المتجرين وعدّل النص ولقطات الشاشة.",
+    step3:"راجع الفرق New ← Current، ونفّذ قائمة التحقق وتدقيق SEO.",
+    step4:"تحقق من المفاتيح مقابل واجهات API الحية ثم أرسل بثقة.",
+    footer:'App Preview · شغّل <code>./run.sh</code> لخدمة الموقع محليًا'},
+  ja:{nav_playground:"Playground",nav_docs:"ドキュメント",nav_blog:"ブログ",
+    hero_title:"公開する前にストア掲載情報をプレビュー。",
+    hero_sub:"API キーで App Store と Google Play からスクリーンショットとメタデータを読み込み、新バージョンをプレビューし、初回リリースのチェックリストを実行し、ストア SEO を監査 — すべて 1 つのローカルページで。",
+    cta_open:"Playground を開く",cta_docs:"ドキュメントを読む",
+    demo_cap:'ライブデモ — <a href="/playground/">Playground</a> を開いて自分のストアデータを読み込みます。',
+    f1_t:"ストアから読み込み",f1_d:"API キーで App Store Connect と Google Play からスクリーンショットとメタデータを取得します。",
+    f2_t:"新バージョンをプレビュー",f2_d:"アップロード前に新バージョンが App Store と Google Play でどう見えるか確認します。",
+    f3_t:"初回リリースチェックリスト",f3_d:"初回提出に必要なすべてを網羅する組み込みチェックリスト。",
+    f4_t:"ストア SEO 監査",f4_d:"モバイルストア向け ASO チェック — タイトル・サブタイトル・キーワードの文字数制限とヒント。",
+    how_h2:"仕組み",
+    step1:"API キーで App Store Connect と Google Play からライブデータを読み込みます（または Try template）。",
+    step2:"両ストアの新バージョンをプレビューし、テキストとスクリーンショットを調整します。",
+    step3:"New → Current の差分をレビューし、リリースチェックリストと SEO 監査を実行します。",
+    step4:"ライブ API でキーを検証し、自信を持って提出します。",
+    footer:'App Preview · ローカルで配信するには <code>./run.sh</code> を実行'}
+};
+function applyI18n(lang){
+  const d=I18N[lang]||I18N.en;
+  document.documentElement.lang=lang;
+  document.documentElement.dir=(lang==='ar')?'rtl':'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(d[k]!=null)el.textContent=d[k];});
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{const k=el.getAttribute('data-i18n-html');if(d[k]!=null)el.innerHTML=d[k];});
+  localStorage.setItem('lang',lang);
+  const sel=document.getElementById('lang');if(sel)sel.value=lang;
+}
+function applyTheme(t){
+  document.documentElement.dataset.theme=t;localStorage.setItem('theme',t);
+  const b=document.getElementById('themeBtn');if(b)b.textContent=(t==='dark')?'☀️':'🌙';
+}
+// Render the embedded Playground at full desktop width (1280px) and scale it to
+// fit the mockup — toolbar stays on one line, more of the listing is visible.
+function scaleDemo(){
+  const vp=document.querySelector('.demo-vp'), f=vp&&vp.querySelector('iframe.demo');
+  if(!vp||!f) return;
+  const s=vp.clientWidth/1280;
+  f.style.transform='scale('+s+')';
+  vp.style.height=(880*s)+'px';
+}
+(function(){
+  applyTheme(document.documentElement.dataset.theme||'light');
+  applyI18n(localStorage.getItem('lang')||document.documentElement.lang||'en');
+  document.getElementById('lang').addEventListener('change',e=>applyI18n(e.target.value));
+  document.getElementById('themeBtn').addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+  scaleDemo();
+  addEventListener('resize',scaleDemo);
+})();
+</script>
+</body>
+</html>

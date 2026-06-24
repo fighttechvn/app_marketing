@@ -45,3 +45,6 @@ resources/social-card-go2048-features/assets/
 # listing-template.json). "Try template" fills assets/new; Sync fills assets/current.
 assets/new/
 assets/current/
+
+# assembled GitHub Pages site (scripts/build-pages.sh)
+_site/

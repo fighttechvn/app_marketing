@@ -20,7 +20,7 @@ desktop/
 ## How it runs
 
 1. Tauri launches → spawns the `serve` sidecar with `--port 0 --data-dir <appData>`.
-2. The sidecar **seeds** `~/Library/Application Support/vn.fighttech.storepreview/`
+2. The sidecar **seeds** `~/Library/Application Support/vn.fighttech.appstorepreview/`
    from the bundled tool (first run only) — so writes (`.env`, `listing*.json`,
    `assets/new`, `assets/current`) land in a **writable** location, not the
    read-only `.app`.
@@ -57,13 +57,27 @@ Builds via `scripts/build.sh`, then `gh release create`/`upload` the `.dmg`
 an authenticated `gh` (`gh auth login`). Publishing is an outward action — it
 uploads a public artifact.
 
+### CI (GitHub Actions)
+
+`.github/workflows/release-dmg.yml` builds the `.dmg` on a **macOS runner**:
+
+- **Push a tag** `desktop-v*` / `v*` → builds and **attaches the `.dmg` to that
+  tag's Release**.
+- **Run manually** (workflow_dispatch) → uploads the `.dmg` as a build artifact.
+
+Icons come from the committed `src-tauri/icon-source.png` (1024px), so CI needs no
+SVG rasterizer.
+
 ## Notes
 
 - **Node is not needed** for the desktop build — only the Playground tool is
   bundled (no docs). The runtime is Python (sidecar) + the WebView.
 - **Heavy deps** (`cryptography`, `google-api-python-client`) are collected via
   PyInstaller `--collect-all` flags — test Sync / Test keys in the built app.
-- **Code signing / notarization** is required for distribution to other Macs
-  (Gatekeeper). Set `APPLE_SIGNING_IDENTITY` / notarization env for `tauri build`,
-  or users must right-click → Open. See the Tauri macOS signing docs.
-- App data dir: `~/Library/Application Support/vn.fighttech.storepreview/`.
+- **Code signing / notarization** — to run on other Macs without a Gatekeeper
+  warning, fill `.signing/signing.env` (from `.signing/signing.env.example`) + drop
+  your `DeveloperID.p12` and notary `.p8` in `.signing/`. `build.sh` signs the
+  sidecar (hardened runtime) and `tauri build` signs + notarizes. The `.signing/`
+  folder is gitignored — copy it to another Mac to build there. Needs an Apple
+  Developer Program account ($99/yr).
+- App data dir: `~/Library/Application Support/vn.fighttech.appstorepreview/`.

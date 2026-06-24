@@ -13,7 +13,7 @@ page or docs — so it opens straight into the tool. Everything lives in `deskto
 ## How it works
 
 1. Tauri launches and spawns the `serve` sidecar with `--port 0 --data-dir <appData>`.
-2. The sidecar **seeds** `~/Library/Application Support/vn.fighttech.storepreview/`
+2. The sidecar **seeds** `~/Library/Application Support/vn.fighttech.appstorepreview/`
    from the bundled tool on first run — so writes (`.env`, `listing*.json`,
    `assets/new`, `assets/current`) go to a **writable** dir, not the read-only `.app`.
 3. `serve.py` binds a free port and prints `READY http://127.0.0.1:<port>/`. With no
@@ -38,6 +38,32 @@ bash scripts/build.sh            # icons → sidecar (PyInstaller) → tauri bui
 | `setup-prereqs.sh` | Installs Rust (rustup), PyInstaller + Python store deps, node deps |
 | `build-sidecar.sh` | Embeds the Playground tool, PyInstaller → `src-tauri/binaries/serve-<triple>` |
 | `build.sh` | Icons + sidecar + `tauri build` → `.app` / `.dmg` |
+
+## Code signing & notarization
+
+Unsigned builds trigger a Gatekeeper warning on other Macs. To sign + notarize with
+an **Apple Developer Program** account, copy `desktop/.signing/signing.env.example`
+→ `signing.env` and drop your files in that folder:
+
+```
+desktop/.signing/
+  signing.env              # filled-in config (gitignored)
+  DeveloperID.p12          # "Developer ID Application" cert + key (export from Keychain)
+  AuthKey_XXXXXXXXXX.p8     # App Store Connect API key (for notarization)
+```
+
+Key values:
+
+- `APPLE_SIGNING_IDENTITY` — e.g. `Developer ID Application: Tran Trung Hieu (TEAMID)`
+  (find with `security find-identity -v -p codesigning`)
+- `APPLE_CERTIFICATE_PASSWORD` — the `.p12` export password
+- `APPLE_TEAM_ID` — your 10-char Team ID
+- `APPLE_API_ISSUER` / `APPLE_API_KEY` / `APPLE_API_KEY_PATH` — the notary key
+
+`bash scripts/build.sh` then signs the sidecar (hardened runtime via
+`entitlements.plist`) and `tauri build` signs + notarizes the `.app`/`.dmg`. The
+`.signing/` folder is gitignored — **copy it to another Mac to build there**. In CI,
+provide the same values as repo secrets (see `.github/workflows/release-dmg.yml`).
 
 ## Gotchas
 

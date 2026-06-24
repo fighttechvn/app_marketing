@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "App Preview",
+  "productName": "AppPreview",
   "version": "0.1.0",
-  "identifier": "vn.fighttech.storepreview",
+  "identifier": "vn.fighttech.appstorepreview",
   "build": {
     "frontendDist": "../frontend"
   },
@@ -24,7 +24,8 @@
     ],
     "externalBin": ["binaries/serve"],
     "macOS": {
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "10.15",
+      "entitlements": "entitlements.plist"
     }
   }
 }

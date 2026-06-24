@@ -40,7 +40,7 @@ pub fn run() {
                                         "main",
                                         WebviewUrl::External(url.parse().unwrap()),
                                     )
-                                    .title("App Preview")
+                                    .title("AppPreview")
                                     .inner_size(1240.0, 840.0)
                                     .min_inner_size(900.0, 640.0)
                                     .build();

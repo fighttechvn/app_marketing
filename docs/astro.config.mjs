@@ -8,21 +8,27 @@ import starlightBlog from 'starlight-blog';
 // host — e.g. SITE_BASE=/app_marketing for GitHub Pages at
 // https://fighttechvn.github.io/app_marketing/.
 const BASE = process.env.SITE_BASE || '/docs';
+// Where the umbrella (landing + playground) lives. '' = origin root (local run.sh);
+// '/app_marketing' on GitHub Pages where the whole site sits under the repo path.
+const UMBRELLA = (process.env.UMBRELLA_BASE || '').replace(/\/$/, '');
 
-// Astro does NOT prefix root-absolute links authored in Markdown/MDX with `base`,
-// so doc-internal links like `/guides/setup/` would 404 under /docs/. This rehype
-// plugin prefixes internal absolute hrefs with the base, while leaving umbrella
-// links (`/`, `/playground/`) and external links untouched.
+// Astro does NOT prefix root-absolute links authored in Markdown/MDX with `base`.
+// Prefix doc-internal links (/guides, /reference, /api…) with the docs base, and
+// umbrella links (/, /playground/, /screenshots) with the umbrella base.
 function rehypeBaseLinks() {
   const base = BASE.replace(/\/$/, '');
-  const umbrella = new Set(['/', '/playground', '/playground/']);
-  const skip = (h) =>
-    !h.startsWith('/') || h.startsWith('//') || h.startsWith(base + '/') ||
-    h === base || umbrella.has(h) || h.startsWith('/playground/') || h.startsWith('/screenshots');
+  const isUmbrella = (h) =>
+    h === '/' || h === '/playground' || h.startsWith('/playground/') || h.startsWith('/screenshots');
   const visit = (node) => {
-    if (node.tagName === 'a' && node.properties && typeof node.properties.href === 'string'
-        && !skip(node.properties.href)) {
-      node.properties.href = base + node.properties.href;
+    if (node.tagName === 'a' && node.properties && typeof node.properties.href === 'string') {
+      const h = node.properties.href;
+      if (h.startsWith('/') && !h.startsWith('//') && !/^https?:/.test(h)) {
+        if (isUmbrella(h)) {
+          if (UMBRELLA) node.properties.href = UMBRELLA + h;     // local: leave at root
+        } else if (!h.startsWith(base + '/') && h !== base) {
+          node.properties.href = base + h;
+        }
+      }
     }
     (node.children || []).forEach(visit);
   };

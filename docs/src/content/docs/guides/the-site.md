@@ -43,12 +43,15 @@ no `docs/dist`) still serves the Playground at `/`.
 
 ## Deploying
 
-The Playground needs the Python backend (`serve.py`) for Sync / Test / Apply, so
-the full site is best **self-hosted** (run `serve.py` behind your own host).
-
-For a static **docs-only** deploy to GitHub Pages, build with a matching base:
+`.github/workflows/deploy.yml` runs `scripts/build-pages.sh` to assemble the **full
+static site** (landing + Playground + docs) into `_site/` and publishes it to
+**https://fighttechvn.github.io/app_marketing/** — `/` landing, `/playground/` the
+static tool, `/docs/` these docs.
 
 ```sh
-SITE_BASE=/app_marketing npm --prefix docs run build
-# → https://fighttechvn.github.io/app_marketing/
+PAGES_BASE=/app_marketing bash scripts/build-pages.sh   # build _site/ locally
 ```
+
+The Playground's backend (Sync / Test / Apply) needs `serve.py`, so those are inert
+on Pages — for the fully interactive tool, **self-host** via `run.sh` or the
+[desktop app](/guides/desktop-app/).

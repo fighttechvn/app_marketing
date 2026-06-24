@@ -87,9 +87,12 @@ to build the docs; the runtime is the bundled Python (`serve.py`) + the system W
 cd docs && npm install && npm run dev    # http://localhost:4321/docs
 ```
 
-Build + deploy details in [docs/README.md](docs/README.md). GitHub Pages publishes a
-docs-only build at `/app_marketing/` via `.github/workflows/deploy.yml`. The full
-site (with the Playground backend) is best **self-hosted** via `run.sh`.
+Build + deploy details in [docs/README.md](docs/README.md). `.github/workflows/deploy.yml`
+assembles the **full static site** (landing + Playground + docs) via
+`scripts/build-pages.sh` and publishes it to **https://fighttechvn.github.io/app_marketing/**
+(`/` landing, `/playground/` static tool, `/docs/` docs). The Playground's backend
+features (Sync / Test / Try-template) need the local server, so they're inert on
+Pages — for the full interactive tool, self-host via `run.sh` or the desktop app.
 
 ## Repo layout
 

@@ -10,6 +10,9 @@ src-tauri/binaries/
 .pyi-work/
 .pyi-spec/
 .icon-1024.png
+# signing secrets — never commit the cert / notary key / filled env
+.signing/*
+!.signing/signing.env.example
 # generated icons (run scripts/build.sh / `tauri icon`)
 src-tauri/icons/
 .DS_Store

@@ -11,6 +11,35 @@ Release notes for the **App Preview** macOS desktop app. Each version is publish
 
 👉 **[Download the latest .dmg](https://github.com/fighttechvn/app_marketing/releases/latest)**
 
+## 0.3.0 — 2026-06-25
+
+**Preview panel + real-device mirroring.** The Playground gains a slide-in **preview
+panel** (right-side icon rail) for previewing your work and driving real phones without
+leaving the tool.
+
+### ✨ Highlights
+
+- **Web / Media / Markdown previews** — load any URL or local path (`/docs/`) in an
+  inline frame, open an image / video / audio file, or render a `.md` file — all in a
+  slide-in panel.
+- **Android mirror + remote control** — live device mirror over `adb`: **click to tap,
+  drag to swipe**, keyboard text, and hardware buttons. A `scrcpy ↗` button opens a
+  native high-FPS window.
+- **iPhone mirror + remote control** — real-device mirror via **WebDriverAgent** over a
+  USB tunnel (`iproxy`): live MJPEG stream with tap / swipe / button / text. Clear
+  guidance when WDA isn't running on the device.
+- **Touch feedback** — a red ripple blooms at each tap; swipes draw a fading trail —
+  shared across Android and iPhone.
+- All device backends are **localhost-only** (`127.0.0.1`) and resolve `adb` / `scrcpy`
+  / `iproxy` even from a GUI-launched app with a minimal `PATH`.
+
+See the [device preview & control reference](/app_marketing/docs/reference/device-preview/)
+for the full protocol and architecture.
+
+### Notes
+- Android control needs `adb` (Android platform-tools); iPhone control needs
+  WebDriverAgent running on the device. Builds remain **Apple Silicon (aarch64)**.
+
 ## 0.2.0 — 2026-06-25
 
 **Signed & notarized builds, auto-update, and one-command deploy.** This is the first

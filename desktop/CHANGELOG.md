@@ -4,6 +4,25 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
 `desktop-v<version>` and published to
 [GitHub Releases](https://github.com/fighttechvn/app_marketing/releases).
 
+## 0.3.0 — 2026-06-25
+
+**Playground preview panel + real-device mirroring.**
+
+### Added
+- **Preview panel** (right-side icon rail) with Web / Media / Markdown previews.
+- **Android mirror + remote control** via `adb` (click→tap, drag→swipe, keys, buttons)
+  plus a native `scrcpy` launcher.
+- **iPhone mirror + remote control** via WebDriverAgent over an `iproxy` USB tunnel
+  (MJPEG stream, tap/swipe/button/text).
+- Shared touch-feedback layer (ripple on tap, trail on swipe) for both platforms.
+- New localhost-only backend routes (`/api/adb/*`, `/api/wda/*`, `/api/preview-file`)
+  in a refactored `server/` package; binaries resolved via `ANDROID_HOME`/SDK/Homebrew
+  fallbacks for GUI-launched apps.
+
+### Fixed
+- `run_desktop.sh` auto-generates the Tauri icon set in dev (fresh checkouts failed on a
+  missing `icons/32x32.png`).
+
 ## 0.2.0 — 2026-06-25
 
 **Signed & notarized builds + one-command deploy.**

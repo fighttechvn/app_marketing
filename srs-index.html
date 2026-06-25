@@ -59,6 +59,11 @@
     .view-switch button { flex: 1; font-family: var(--font-body); font-size: 12px; font-weight: 600; padding: 8px 6px; border: 1px solid var(--color-hairline); background: var(--color-canvas); color: var(--color-muted); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: background .15s, color .15s, border-color .15s; }
     .view-switch button:hover { background: var(--color-surface); color: var(--color-ink); }
     .view-switch button.active { background: var(--color-primary); color: var(--color-ink); border-color: var(--color-primary); }
+    /* Cross-doc nav: link the SRS page to the published docs (Setup, Changelog…). */
+    .site-nav { display: flex; flex-direction: column; gap: 3px; margin: 0 0 18px; padding-bottom: 14px; border-bottom: 1px solid var(--color-hairline); }
+    .site-nav a { font-size: 12.5px; font-weight: 600; color: var(--color-muted); text-decoration: none; padding: 6px 10px; border-radius: 6px; display: flex; align-items: center; gap: 7px; }
+    .site-nav a:hover { background: var(--color-surface); color: var(--color-ink); }
+    .site-nav a.active { background: var(--color-primary); color: var(--color-ink); }
     /* Flow + Board views expand to the full content width */
     body[data-view="flow"] main, body[data-view="board"] main { max-width: none; }
     main section > h2:first-child { margin-top: 0; }
@@ -144,6 +149,12 @@
     <aside>
       <h2>App Preview</h2>
       <div class="meta">Store Listing Preview · v0.4.0</div>
+      <nav class="site-nav">
+        <a href="srs-index.html" class="active">📋 SRS</a>
+        <a href="docs/guides/setup/">🛠️ Setup guide</a>
+        <a href="docs/changelog/">📝 Changelog</a>
+        <a href="docs/">📚 All docs</a>
+      </nav>
       <div class="view-switch">
         <button type="button" data-view="docs" class="active">📄 Docs</button>
         <button type="button" data-view="flow">🔀 Flow</button>

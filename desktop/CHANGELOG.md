@@ -4,6 +4,14 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
 `desktop-v<version>` and published to
 [GitHub Releases](https://github.com/fighttechvn/app_marketing/releases).
 
+## 0.4.1 — 2026-06-25
+
+**Maintenance release — rebuild macOS + Windows installers.**
+
+### Changed
+- Version bump to publish fresh signed macOS `.dmg` and Windows NSIS `.exe`
+  builds via the auto-release pipeline (no functional changes to the app).
+
 ## 0.3.0 — 2026-06-25
 
 **Playground preview panel + real-device mirroring.**

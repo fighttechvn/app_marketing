@@ -1,0 +1,751 @@
+#!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec bash "$0" "$@"
+fi
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd "$script_dir/.." && pwd)"
+source_file="$script_dir/srs.md"
+output_file="$project_root/srs-index.html"
+
+if [[ ! -f "$source_file" ]]; then
+  echo "Missing $source_file" >&2
+  exit 1
+fi
+
+html_escape() {
+  sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+}
+
+inline_md() {
+  sed -E \
+    -e 's/`([^`]*)`/<code>\1<\/code>/g' \
+    -e 's/\*\*([^*]*)\*\*/<strong>\1<\/strong>/g'
+}
+
+slugify() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-//; s/-$//'
+}
+
+render_markdown() {
+  local markdown_file="$1"
+  local in_code=0
+  local code_lang=""
+  local in_ul=0
+  local in_ol=0
+  local in_table=0
+
+  close_lists() {
+    if [[ $in_ul -eq 1 ]]; then echo '</ul>'; in_ul=0; fi
+    if [[ $in_ol -eq 1 ]]; then echo '</ol>'; in_ol=0; fi
+  }
+
+  close_table() {
+    if [[ $in_table -eq 1 ]]; then echo '</tbody></table>'; in_table=0; fi
+  }
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^\`\`\`(.*)$ ]]; then
+      if [[ $in_code -eq 0 ]]; then
+        close_lists
+        close_table
+        code_lang="${BASH_REMATCH[1]}"
+        if [[ "$code_lang" == "mermaid" ]]; then
+          echo '<pre class="mermaid">'
+        else
+          echo '<pre><code>'
+        fi
+        in_code=1
+      else
+        if [[ "$code_lang" == "mermaid" ]]; then
+          echo '</pre>'
+        else
+          echo '</code></pre>'
+        fi
+        in_code=0
+        code_lang=""
+      fi
+      continue
+    fi
+
+    if [[ $in_code -eq 1 ]]; then
+      printf '%s\n' "$line" | html_escape
+      continue
+    fi
+
+    if [[ -z "$line" ]]; then
+      close_lists
+      close_table
+      continue
+    fi
+
+    if [[ "$line" =~ ^\|.*\|$ ]]; then
+      close_lists
+      if [[ -z "$(printf '%s' "$line" | tr -d ' |:-')" ]]; then
+        continue
+      fi
+      if [[ $in_table -eq 0 ]]; then
+        echo '<table><tbody>'
+        in_table=1
+      fi
+      echo '<tr>'
+      IFS='|' read -ra cells <<< "$line"
+      for cell in "${cells[@]}"; do
+        cell="$(printf '%s' "$cell" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+        [[ -z "$cell" ]] && continue
+        printf '<td>%s</td>\n' "$(printf '%s' "$cell" | html_escape | inline_md)"
+      done
+      echo '</tr>'
+      continue
+    fi
+
+    close_table
+
+    if [[ "$line" =~ ^#[[:space:]]+(.+)$ ]]; then
+      close_lists
+      text="${BASH_REMATCH[1]}"
+      id="$(slugify "$text")"
+      printf '<h1 id="%s">%s</h1>\n' "$id" "$(printf '%s' "$text" | html_escape | inline_md)"
+    elif [[ "$line" =~ ^##[[:space:]]+(.+)$ ]]; then
+      close_lists
+      text="${BASH_REMATCH[1]}"
+      id="$(slugify "$text")"
+      printf '<h2 id="%s">%s</h2>\n' "$id" "$(printf '%s' "$text" | html_escape | inline_md)"
+    elif [[ "$line" =~ ^###[[:space:]]+(.+)$ ]]; then
+      close_lists
+      text="${BASH_REMATCH[1]}"
+      id="$(slugify "$text")"
+      printf '<h3 id="%s">%s</h3>\n' "$id" "$(printf '%s' "$text" | html_escape | inline_md)"
+    elif [[ "$line" =~ ^####[[:space:]]+(.+)$ ]]; then
+      close_lists
+      text="${BASH_REMATCH[1]}"
+      id="$(slugify "$text")"
+      printf '<h4 id="%s">%s</h4>\n' "$id" "$(printf '%s' "$text" | html_escape | inline_md)"
+    elif [[ "$line" =~ ^-[[:space:]]+(.+)$ ]]; then
+      if [[ $in_ul -eq 0 ]]; then close_lists; echo '<ul>'; in_ul=1; fi
+      printf '<li>%s</li>\n' "$(printf '%s' "${BASH_REMATCH[1]}" | html_escape | inline_md)"
+    elif [[ "$line" =~ ^[0-9]+\.[[:space:]]+(.+)$ ]]; then
+      if [[ $in_ol -eq 0 ]]; then close_lists; echo '<ol>'; in_ol=1; fi
+      printf '<li>%s</li>\n' "$(printf '%s' "${BASH_REMATCH[1]}" | html_escape | inline_md)"
+    elif [[ "$line" =~ ^\>[[:space:]]*(.+)$ ]]; then
+      close_lists
+      printf '<blockquote>%s</blockquote>\n' "$(printf '%s' "${BASH_REMATCH[1]}" | html_escape | inline_md)"
+    else
+      close_lists
+      printf '<p>%s</p>\n' "$(printf '%s' "$line" | html_escape | inline_md)"
+    fi
+  done < "$markdown_file"
+
+  close_lists
+  close_table
+}
+
+append_screen_documents() {
+  local screens_dir="$script_dir/screens"
+  [[ -d "$screens_dir" ]] || return 0
+
+  find "$screens_dir" -maxdepth 1 -type f -name '*.md' | sort | while IFS= read -r screen_file; do
+    local screen_name
+    screen_name="$(sed -n 's/^# //p' "$screen_file" | head -n 1)"
+    if [[ -z "$screen_name" ]]; then
+      screen_name="$(basename "$screen_file" .md)"
+    fi
+
+    printf '\n### %s\n\n' "$screen_name"
+    printf 'Source: `%s`\n\n' "resources/screens/$(basename "$screen_file")"
+    sed '1{/^# /d;}' "$screen_file" | sed -E 's/^(#{2,5})[[:space:]]+/##\1 /'
+    printf '\n'
+  done
+}
+
+# Return the navigation events in screen file $1 whose description references the
+# target screen's match tokens ($2, space-separated: title keywords plus the
+# target screen file id). Accepts both "->" and "→" arrows. Comma-joined names.
+events_to_target() {
+  local src="$1" toks="$2"
+  local labels=""
+  while IFS= read -r ev; do
+    ev="${ev#- }"
+    ev="${ev//→/->}"
+    [[ "$ev" == *"->"* ]] || continue
+    local name desc tok
+    name="$(printf '%s' "${ev%%->*}" | sed -E 's/[[:space:]]+$//')"
+    desc="$(printf '%s' "${ev#*->}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/ /g')"
+    desc=" $desc "
+    for tok in $toks; do
+      [[ -z "$tok" ]] && continue
+      # whole-word match so "auth" does not match inside "AuthService"
+      if [[ "$desc" == *" $tok "* ]]; then
+        labels="${labels:+$labels, }$name"
+        break
+      fi
+    done
+  done < <(awk '/^## Events/{f=1;next} /^## /{f=0} f && /^[[:space:]]*- /{print}' "$src")
+  printf '%s' "$labels"
+}
+
+# Build the Flow canvas: each screen is rendered with its actual content (the
+# ASCII layout mockup), and consecutive screens are joined by arrow connectors
+# labeled with the navigation events that move between them.
+build_screen_flow_canvas() {
+  local screens_dir="$script_dir/screens"
+  [[ -d "$screens_dir" ]] || return 0
+
+  local files=()
+  while IFS= read -r f; do files+=("$f"); done \
+    < <(find "$screens_dir" -maxdepth 1 -type f -name '*.md' | sort)
+  local n=${#files[@]}
+  (( n == 0 )) && return 0
+
+  local titles=() tokens=() ascii=()
+  local i
+  for i in "${!files[@]}"; do
+    local t
+    t="$(sed -n 's/^# //p' "${files[$i]}" | head -n 1)"
+    [[ -z "$t" ]] && t="$(basename "${files[$i]}" .md)"
+    titles[$i]="$t"
+    # Match tokens: title keywords + the screen file id (e.g. ep02-forgot-password-screen)
+    # so an event description can target a screen explicitly by its file id.
+    local id
+    id="$(basename "${files[$i]}" .md)"
+    tokens[$i]="$id $(printf '%s' "$t" \
+      | tr '[:upper:]' '[:lower:]' \
+      | sed -E 's/[^a-z0-9-]+/\n/g' \
+      | grep -E '.' \
+      | grep -Ev '^(screen|layout|and|the|of|to|mode|page|view|a)$' \
+      | paste -sd ' ' -)"
+    # First fenced code block = the screen mockup.
+    ascii[$i]="$(awk '/^```/{c++; next} c==1{print}' "${files[$i]}" | html_escape)"
+  done
+
+  # Directional event labels for every ordered pair, in a flat n*n array.
+  local lbl=()
+  for ((i = 0; i < n; i++)); do
+    for ((j = 0; j < n; j++)); do
+      if (( i == j )); then
+        lbl[i * n + j]=""
+      else
+        lbl[i * n + j]="$(events_to_target "${files[$i]}" "${tokens[$j]}")"
+      fi
+    done
+  done
+
+  # Undirected adjacency + degree (two screens are linked if either navigates
+  # to the other).
+  local adj=() deg=()
+  for ((i = 0; i < n; i++)); do
+    deg[i]=0
+    for ((j = 0; j < n; j++)); do
+      if (( i != j )) && { [[ -n "${lbl[i * n + j]}" ]] || [[ -n "${lbl[j * n + i]}" ]]; }; then
+        adj[i * n + j]=1
+        deg[i]=$(( deg[i] + 1 ))
+      else
+        adj[i * n + j]=0
+      fi
+    done
+  done
+
+  # Order screens as a path: start from a least-connected screen (a flow
+  # endpoint) and greedily hop to a linked, unvisited screen. This keeps a
+  # hub screen between its neighbours instead of leaving a card disconnected.
+  local visited=() order=()
+  for ((i = 0; i < n; i++)); do visited[i]=0; done
+  local start=0 i
+  for ((i = 1; i < n; i++)); do (( deg[i] < deg[start] )) && start=$i; done
+  local cur=$start count=0
+  visited[start]=1; order+=("$start"); count=1
+  while (( count < n )); do
+    local nxt=-1 j
+    for ((j = 0; j < n; j++)); do
+      if (( !visited[j] )) && (( adj[cur * n + j] == 1 )); then nxt=$j; break; fi
+    done
+    if (( nxt < 0 )); then
+      for ((j = 0; j < n; j++)); do if (( !visited[j] )); then nxt=$j; break; fi; done
+    fi
+    visited[nxt]=1; order+=("$nxt"); cur=$nxt; count=$(( count + 1 ))
+  done
+
+  printf '<div class="flow-canvas">\n'
+  local idx
+  for ((idx = 0; idx < n; idx++)); do
+    local s=${order[idx]}
+    printf '<div class="flow-screen"><div class="scr-cap">%s</div><pre>%s</pre></div>\n' \
+      "$(printf '%s' "${titles[$s]}" | html_escape)" "${ascii[$s]}"
+    if (( idx < n - 1 )); then
+      local a=${order[idx]} b=${order[idx + 1]} fwd back
+      fwd="${lbl[a * n + b]}"
+      back="${lbl[b * n + a]}"
+      printf '<div class="flow-connector">\n'
+      [[ -n "$fwd" ]] && printf '<div class="flow-arrow fwd"><span class="evt">%s</span><span class="line">&rarr;</span></div>\n' "$(printf '%s' "$fwd" | html_escape)"
+      [[ -n "$back" ]] && printf '<div class="flow-arrow back"><span class="line">&larr;</span><span class="evt">%s</span></div>\n' "$(printf '%s' "$back" | html_escape)"
+      [[ -z "$fwd$back" ]] && printf '<div class="flow-arrow back"><span class="line">&middot;&middot;&middot;</span></div>\n'
+      printf '</div>\n'
+    fi
+  done
+  printf '</div>\n'
+  return 0
+}
+
+# Build the kanban Board from resources/user-story/*.md.
+# Columns are fixed statuses (Backlog / To Do / In Progress / In Review / Done);
+# each "## EPxx.USyyy: Title" story becomes a card placed by its optional
+# "Status:" line (default Done). Cards show only the title on the board and
+# expose full description + acceptance-criteria tasks via a click dialog.
+build_board() {
+  local us_dir="$script_dir/user-story"
+  if [[ ! -d "$us_dir" ]]; then
+    printf '<p class="meta">No user stories found under <code>resources/user-story/</code>.</p>\n'
+    return 0
+  fi
+
+  printf '<div class="board" id="board">\n'
+  printf '<section class="board-col" data-status="backlog"><h3 class="board-col-title">Backlog <span class="col-count">0</span></h3><div class="board-cards"></div></section>\n'
+  printf '<section class="board-col" data-status="todo"><h3 class="board-col-title">To Do (Sprint) <span class="col-count">0</span></h3><div class="board-cards"></div></section>\n'
+  printf '<section class="board-col" data-status="inprogress"><h3 class="board-col-title">In Progress <span class="col-count">0</span></h3><div class="board-cards"></div></section>\n'
+  printf '<section class="board-col" data-status="inreview"><h3 class="board-col-title">In Review <span class="col-count">0</span></h3><div class="board-cards"></div></section>\n'
+  printf '<section class="board-col" data-status="done"><h3 class="board-col-title">Done <span class="col-count">0</span></h3><div class="board-cards"></div></section>\n'
+  printf '</div>\n'
+  # List layout: status filter tags + a flat list of user stories (filled by JS).
+  printf '<div id="list-filter" hidden></div>\n'
+  printf '<div id="board-list" hidden></div>\n'
+
+  # Hidden pool; JS distributes each card into its status column on load.
+  printf '<div id="story-pool" hidden>\n'
+  local has=0
+  while IFS= read -r f; do
+    has=1
+    local epic
+    epic="$(sed -n 's/^# //p' "$f" | head -n 1)"
+    epic="${epic% User Stories}"
+    [[ -z "$epic" ]] && epic="$(basename "$f" .md)"
+    awk -v epic="$epic" '
+      function esc(s){ gsub(/&/,"\\&amp;",s); gsub(/</,"\\&lt;",s); gsub(/>/,"\\&gt;",s); return s }
+      function md(s,  out,parts,nn,i){ nn=split(s,parts,"`"); out=""
+        for(i=1;i<=nn;i++){ if(i%2==0) out=out "<code>" parts[i] "</code>"; else out=out parts[i] } return out }
+      function norm(s,  t){ t=tolower(s); gsub(/[^a-z]/,"",t)
+        if(t=="backlog") return "backlog"
+        if(t=="todo"||t=="sprint") return "todo"
+        if(t=="inprogress"||t=="doing"||t=="wip") return "inprogress"
+        if(t=="inreview"||t=="review") return "inreview"
+        if(t=="done"||t=="completed"||t=="complete") return "done"
+        return "done" }
+      function slabel(s){
+        if(s=="backlog") return "Backlog"
+        if(s=="todo") return "To Do"
+        if(s=="inprogress") return "In Progress"
+        if(s=="inreview") return "In Review"
+        return "Done" }
+      function flush(){
+        if(id==""){ return }
+        printf "<article class=\"story-card\" data-status=\"%s\" tabindex=\"0\" role=\"button\">\n", status
+        printf "<div class=\"story-head\"><span class=\"story-id\">%s</span><span class=\"epic-tag\">%s</span><span class=\"status-badge st-%s\">%s</span></div>\n", esc(id), esc(epic), status, slabel(status)
+        printf "<h4 class=\"story-title\">%s</h4>\n", md(esc(title))
+        if(taskn>0) printf "<div class=\"story-foot\"><span class=\"task-count\">%d</span> tasks</div>\n", taskn
+        printf "<div class=\"story-full\">\n"
+        if(desc!="") printf "<p class=\"story-desc\">%s</p>\n", md(esc(desc))
+        if(taskn>0) printf "<ul class=\"task-list\">\n%s</ul>\n", tasks
+        printf "</div>\n"
+        printf "</article>\n"
+        id=""; title=""; desc=""; tasks=""; taskn=0; inac=0; status="done"
+      }
+      BEGIN{ status="done" }
+      /^## /{
+        flush()
+        line=substr($0,4); c=index(line,":")
+        if(c>0){ id=substr(line,1,c-1); title=substr(line,c+1); sub(/^[[:space:]]+/,"",title) }
+        else { id=line; title="" }
+        next
+      }
+      /^[Ss]tatus:[[:space:]]*/{ status=norm(substr($0,8)); next }
+      /^Acceptance criteria:/{ inac=1; next }
+      /^[[:space:]]*- /{
+        if(inac){
+          item=$0; sub(/^[[:space:]]*- /,"",item)
+          sub_=($0 ~ /^[[:space:]]+- /) ? " task-sub" : ""
+          tasks=tasks sprintf("<li class=\"task done%s\"><span class=\"check\">\342\234\223</span><span>%s</span></li>\n", sub_, md(esc(item)))
+          taskn++
+        }
+        next
+      }
+      /^[[:space:]]*$/{ next }
+      { if(id!="" && !inac){ desc=(desc=="" ? $0 : desc " " $0) } }
+      END{ flush() }
+    ' "$f"
+  done < <(find "$us_dir" -maxdepth 1 -type f -name '*.md' | sort)
+  printf '</div>\n'
+
+  if (( has == 0 )); then
+    printf '<p class="meta">No user stories found under <code>resources/user-story/</code>.</p>\n'
+  fi
+  return 0
+}
+
+enriched_source_file="$(mktemp)"
+in_screens_section=0
+screen_documents_inserted=0
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ $in_screens_section -eq 1 && $screen_documents_inserted -eq 0 && "$line" =~ ^##[[:space:]]+ ]]; then
+    append_screen_documents >> "$enriched_source_file"
+    screen_documents_inserted=1
+    in_screens_section=0
+  fi
+  printf '%s\n' "$line" >> "$enriched_source_file"
+  if [[ "$line" =~ ^##[[:space:]]+([0-9]+\.[[:space:]]+)?Screens[[:space:]]*/[[:space:]]*UI[[:space:]]+Surfaces ]]; then
+    in_screens_section=1
+  fi
+done < "$source_file"
+if [[ $in_screens_section -eq 1 && $screen_documents_inserted -eq 0 ]]; then
+  append_screen_documents >> "$enriched_source_file"
+fi
+
+content_file="$(mktemp)"
+render_markdown "$enriched_source_file" > "$content_file"
+
+flow_canvas_html="$(build_screen_flow_canvas)"
+board_html="$(build_board)"
+
+{
+  cat <<'HTML'
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Software Requirements Specification</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --color-primary: #FCD535;
+      --color-canvas: #ffffff;
+      --color-surface: #fafafa;
+      --color-surface-strong: #f3f3f5;
+      --color-ink: #181a20;
+      --color-muted: #707a8a;
+      --color-hairline: #eaecef;
+      --color-link: #2563eb;
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: var(--font-body); color: var(--color-ink); background: var(--color-surface); margin: 0; padding: 0; line-height: 1.6; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    aside { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; background: var(--color-canvas); border-right: 1px solid var(--color-hairline); padding: 24px 16px; }
+    aside h2 { font-size: 14px; text-transform: uppercase; color: var(--color-muted); margin: 0 0 12px; letter-spacing: .03em; border: 0; padding: 0; }
+    aside nav ol, aside nav ul { list-style: none; padding: 0; margin: 0; }
+    aside nav .toc-h2 > a { font-weight: 600; font-size: 13px; color: var(--color-ink); display: block; padding: 6px 10px; border-radius: 6px; text-decoration: none; }
+    aside nav .toc-h2 > a:hover { background: var(--color-surface); }
+    aside nav .toc-h2.active > a { background: var(--color-primary); color: var(--color-ink); }
+    aside nav .toc-h3 { padding-left: 18px; border-left: 2px solid var(--color-hairline); margin-left: 10px; }
+    aside nav .toc-h3 a { display: block; padding: 4px 10px; font-size: 12px; color: var(--color-muted); border-radius: 4px; text-decoration: none; line-height: 1.4; }
+    aside nav .toc-h3 a:hover { background: var(--color-surface); color: var(--color-ink); }
+    aside nav .toc-h3 a.active { color: var(--color-ink); font-weight: 600; background: var(--color-surface); }
+    aside nav .toc-h2.collapsed .toc-h3 { display: none; }
+    aside nav .toggle { cursor: pointer; user-select: none; color: var(--color-muted); margin-right: 4px; display: inline-block; width: 12px; transition: transform .15s; }
+    aside nav .toc-h2.collapsed .toggle { transform: rotate(-90deg); }
+    main { padding: 40px 60px; max-width: 1100px; }
+    main h1 { font-size: 32px; border-bottom: 2px solid var(--color-ink); padding-bottom: 12px; }
+    main h2 { font-size: 24px; margin-top: 40px; border-bottom: 1px solid var(--color-hairline); padding-bottom: 6px; }
+    main h3 { font-size: 18px; margin-top: 28px; color: var(--color-ink); }
+    main h4 { font-size: 16px; margin-top: 20px; }
+    main p, main li { font-size: 14px; }
+    main code { font-family: var(--font-mono); font-size: 13px; background: var(--color-surface); padding: 2px 6px; border-radius: 4px; }
+    main pre { background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 13px; }
+    main pre.mermaid { background: var(--color-canvas); text-align: center; color: var(--color-ink); white-space: pre; }
+    main .mermaid svg { max-width: 100%; }
+    main table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 13px; }
+    main th, main td { border: 1px solid var(--color-hairline); padding: 8px 12px; text-align: left; vertical-align: top; }
+    main th { background: var(--color-surface); font-weight: 600; }
+    main a { color: var(--color-link); text-decoration: none; }
+    main a:hover { text-decoration: underline; }
+    main hr { border: none; border-top: 1px solid var(--color-hairline); margin: 32px 0; }
+    main blockquote { border-left: 4px solid var(--color-primary); margin: 16px 0; padding: 8px 16px; background: var(--color-surface); color: var(--color-muted); }
+    .meta { color: var(--color-muted); font-size: 13px; margin-bottom: 24px; }
+    footer { padding: 24px 60px; border-top: 1px solid var(--color-hairline); color: var(--color-muted); font-size: 13px; background: var(--color-canvas); }
+    footer code { font-family: var(--font-mono); background: var(--color-surface); padding: 2px 6px; border-radius: 4px; }
+    /* View switcher (Docs / Flow / Board) */
+    .view-switch { display: flex; gap: 6px; margin: 0 0 16px; }
+    .view-switch button { flex: 1; font-family: var(--font-body); font-size: 12px; font-weight: 600; padding: 8px 6px; border: 1px solid var(--color-hairline); background: var(--color-canvas); color: var(--color-muted); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: background .15s, color .15s, border-color .15s; }
+    .view-switch button:hover { background: var(--color-surface); color: var(--color-ink); }
+    .view-switch button.active { background: var(--color-primary); color: var(--color-ink); border-color: var(--color-primary); }
+    /* Flow + Board views expand to the full content width */
+    body[data-view="flow"] main, body[data-view="board"] main { max-width: none; }
+    main section > h2:first-child { margin-top: 0; }
+    /* Flow view — canvas of screen mockups joined by navigation arrows */
+    .flow-canvas { display: flex; align-items: center; gap: 0; overflow-x: auto; padding: 28px 24px; background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 12px; margin: 16px 0; }
+    .flow-screen { flex: none; display: flex; flex-direction: column; align-items: center; }
+    .flow-screen .scr-cap { font-family: var(--font-mono); font-size: 12px; color: var(--color-muted); margin-bottom: 10px; text-align: center; max-width: 360px; }
+    .flow-screen pre { margin: 0; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 16px; font-size: 11px; line-height: 1.3; white-space: pre; color: var(--color-ink); box-shadow: 0 6px 18px rgba(24, 26, 32, .06); }
+    .flow-connector { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 0 16px; min-width: 150px; }
+    .flow-arrow { display: flex; align-items: center; gap: 6px; font-size: 11px; white-space: nowrap; }
+    .flow-arrow .evt { font-family: var(--font-mono); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 6px; padding: 2px 7px; color: var(--color-ink); }
+    .flow-arrow .line { font-size: 20px; line-height: 1; }
+    .flow-arrow.fwd { color: #2563eb; }
+    .flow-arrow.fwd .line { color: #2563eb; }
+    .flow-arrow.back { color: var(--color-muted); }
+    .flow-legend { display: flex; flex-wrap: wrap; gap: 20px; font-size: 13px; color: var(--color-muted); margin-top: 12px; }
+    .flow-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .flow-legend .key { font-family: var(--font-mono); color: var(--color-ink); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 4px; padding: 1px 6px; }
+    /* Board / List view */
+    .board-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .layout-switch { display: inline-flex; gap: 4px; }
+    .layout-switch button { font-family: var(--font-body); font-size: 12px; font-weight: 600; padding: 5px 12px; border: 1px solid var(--color-hairline); background: var(--color-canvas); color: var(--color-muted); border-radius: 6px; cursor: pointer; }
+    .layout-switch button.active { background: var(--color-ink); color: #fff; border-color: var(--color-ink); }
+    .board { display: flex; gap: 16px; margin-top: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
+    .board-col { flex: 1 1 0; min-width: 240px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-top-width: 3px; border-radius: 12px; padding: 14px; }
+    .board-col[data-status="backlog"] { border-top-color: #94a3b8; }
+    .board-col[data-status="todo"] { border-top-color: #6366f1; }
+    .board-col[data-status="inprogress"] { border-top-color: #f59e0b; }
+    .board-col[data-status="inreview"] { border-top-color: #8b5cf6; }
+    .board-col[data-status="done"] { border-top-color: #16a34a; }
+    /* List layout: a flat list of user stories, no status columns */
+    .list-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
+    .filter-tag { font-family: var(--font-body); font-size: 12px; font-weight: 600; padding: 6px 12px; border: 1px solid var(--color-hairline); background: var(--color-canvas); color: var(--color-muted); border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .filter-tag:hover { background: var(--color-surface); color: var(--color-ink); }
+    .filter-tag.active { background: var(--color-ink); color: #fff; border-color: var(--color-ink); }
+    .filter-tag .ft-count { font-size: 11px; opacity: .75; }
+    #board-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    #board-list .story-card { display: flex; align-items: center; gap: 14px; }
+    #board-list .story-head { margin-bottom: 0; flex: none; }
+    #board-list .story-title { flex: 1; margin: 0; }
+    #board-list .story-foot { margin-top: 0; flex: none; white-space: nowrap; }
+    .status-badge { display: none; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+    #board-list .status-badge { display: inline-block; }
+    .status-badge.st-backlog { background: #eef2f6; color: #475569; }
+    .status-badge.st-todo { background: #e0e7ff; color: #4338ca; }
+    .status-badge.st-inprogress { background: #fef3c7; color: #92400e; }
+    .status-badge.st-inreview { background: #ede9fe; color: #6d28d9; }
+    .status-badge.st-done { background: #dcfce7; color: #166534; }
+    .board-col-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--color-muted); margin: 0 0 12px; display: flex; align-items: center; }
+    .col-count { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--color-muted); background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 999px; text-align: center; }
+    .col-empty { color: var(--color-muted); font-size: 13px; text-align: center; padding: 16px 0; margin: 0; }
+    .board-cards { display: flex; flex-direction: column; gap: 12px; min-height: 8px; }
+    .story-card { background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 10px; padding: 14px; cursor: pointer; transition: box-shadow .15s, transform .15s, border-color .15s; }
+    .story-card:hover { border-color: var(--color-primary); box-shadow: 0 4px 14px rgba(24, 26, 32, .08); transform: translateY(-1px); }
+    .story-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .story-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .story-id { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--color-muted); }
+    .epic-tag { font-size: 11px; font-weight: 600; color: var(--color-muted); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 6px; padding: 1px 8px; }
+    .story-title { font-size: 14px; margin: 0; color: var(--color-ink); line-height: 1.45; }
+    .story-foot { margin-top: 10px; font-size: 12px; color: var(--color-muted); }
+    .story-foot .task-count { font-weight: 700; color: var(--color-ink); }
+    .story-full { display: none; }
+    .story-desc { font-size: 14px; color: var(--color-muted); margin: 0 0 14px; }
+    .task-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    .task { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.5; }
+    .task .check { flex: none; width: 16px; height: 16px; border-radius: 4px; background: #16a34a; color: #fff; font-size: 11px; line-height: 16px; text-align: center; }
+    .task.task-sub { margin-left: 24px; font-size: 13px; color: var(--color-muted); }
+    .task.task-sub .check { background: var(--color-muted); }
+    /* Story detail dialog */
+    dialog#story-dialog { border: 0; border-radius: 14px; padding: 0; max-width: 660px; width: calc(100% - 40px); box-shadow: 0 24px 60px rgba(0, 0, 0, .25); }
+    dialog#story-dialog::backdrop { background: rgba(24, 26, 32, .45); }
+    .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--color-hairline); }
+    .dialog-head .story-id { display: block; margin-bottom: 4px; }
+    .dialog-head h3 { margin: 0; font-size: 17px; }
+    .dialog-close { border: 0; background: var(--color-surface); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 16px; line-height: 1; color: var(--color-muted); flex: none; }
+    .dialog-close:hover { background: var(--color-surface-strong); color: var(--color-ink); }
+    .dialog-body { padding: 18px 22px; max-height: 70vh; overflow-y: auto; }
+    @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } aside { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--color-hairline); } main { padding: 24px; } footer { padding: 16px 24px; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <h2>App Preview</h2>
+      <div class="meta">Store Listing Preview · v0.4.0</div>
+      <div class="view-switch">
+        <button type="button" data-view="docs" class="active">📄 Docs</button>
+        <button type="button" data-view="flow">🔀 Flow</button>
+        <button type="button" data-view="board">🗂️ Board</button>
+      </div>
+      <nav id="toc-nav"><ol id="toc"></ol></nav>
+    </aside>
+    <main>
+      <section id="content">
+HTML
+  cat "$content_file"
+  printf '    </section>\n'
+
+  # Flow view: a canvas of the actual screen mockups joined by navigation arrows.
+  printf '    <section id="flow-view" hidden>\n'
+  printf '<h2>Screen Flow</h2>\n'
+  printf '<p class="meta">Each screen shows its real layout; arrows are the navigation events that move between screens.</p>\n'
+  if [[ -n "$flow_canvas_html" ]]; then
+    printf '%s\n' "$flow_canvas_html"
+    printf '<div class="flow-legend">\n'
+    printf '<span><span class="key">&rarr; Event</span> navigates to the next screen</span>\n'
+    printf '<span><span class="key">&larr; Event</span> navigates back</span>\n'
+    printf '</div>\n'
+  else
+    printf '<p class="meta">No screen layouts found under <code>resources/screens/</code>.</p>\n'
+  fi
+  printf '    </section>\n'
+
+  # Board view: kanban columns by status; cards show titles, dialog shows detail.
+  printf '    <section id="board-view" hidden>\n'
+  printf '<div class="board-head"><h2>Feature Board</h2><div class="layout-switch"><button type="button" data-layout="board" class="active">Board</button><button type="button" data-layout="list">List</button></div></div>\n'
+  printf '<p class="meta">User stories across the sprint board. Click a card to see its full description and tasks.</p>\n'
+  printf '%s\n' "$board_html"
+  printf '<dialog id="story-dialog">\n'
+  printf '<div class="dialog-head"><div><span class="story-id" id="dialog-id"></span><h3 id="dialog-title"></h3></div><button type="button" class="dialog-close" id="dialog-close" aria-label="Close">✕</button></div>\n'
+  printf '<div class="dialog-body" id="dialog-body"></div>\n'
+  printf '</dialog>\n'
+  printf '    </section>\n'
+
+  cat <<'HTML'
+    </main>
+  </div>
+  <footer>Generated from <code>resources/srs.md</code> by <code>resources/srs.sh</code>.</footer>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    const toc = document.getElementById('toc');
+    const headings = [...document.querySelectorAll('#content h2, #content h3')];
+    let currentGroup = null;
+    headings.forEach((heading) => {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = `#${heading.id}`;
+      link.textContent = heading.textContent;
+      if (heading.tagName === 'H2') {
+        item.className = 'toc-h2';
+        const toggle = document.createElement('span');
+        toggle.className = 'toggle';
+        toggle.textContent = '▾';
+        link.prepend(toggle);
+        item.appendChild(link);
+        const sub = document.createElement('ul');
+        sub.className = 'toc-h3';
+        item.appendChild(sub);
+        toc.appendChild(item);
+        currentGroup = sub;
+        toggle.addEventListener('click', (event) => {
+          event.preventDefault();
+          item.classList.toggle('collapsed');
+        });
+      } else if (currentGroup) {
+        item.appendChild(link);
+        currentGroup.appendChild(item);
+      }
+    });
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const link = document.querySelector(`aside nav a[href="#${entry.target.id}"]`);
+        if (!link) return;
+        if (entry.isIntersecting) {
+          document.querySelectorAll('aside nav a.active, aside nav li.active').forEach((node) => node.classList.remove('active'));
+          link.classList.add('active');
+          link.closest('.toc-h2')?.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    headings.forEach((heading) => observer.observe(heading));
+
+    // View switching: Docs (TOC) / Flow (screen canvas) / Board (feature board).
+    const views = { docs: 'content', flow: 'flow-view', board: 'board-view' };
+    function setView(view) {
+      Object.entries(views).forEach(([key, id]) => {
+        const el = document.getElementById(id);
+        if (el) el.hidden = key !== view;
+      });
+      document.querySelectorAll('.view-switch button').forEach((btn) =>
+        btn.classList.toggle('active', btn.dataset.view === view));
+      const tocNav = document.getElementById('toc-nav');
+      if (tocNav) tocNav.hidden = view !== 'docs';
+      document.body.dataset.view = view;
+    }
+    document.querySelectorAll('.view-switch button').forEach((btn) =>
+      btn.addEventListener('click', () => setView(btn.dataset.view)));
+    document.body.dataset.view = 'docs';
+
+    // Board cards live in a pool; a layout function moves them into either the
+    // kanban columns (Board) or a single flat list of user stories (List).
+    const board = document.getElementById('board');
+    const boardList = document.getElementById('board-list');
+    const listFilter = document.getElementById('list-filter');
+    const pool = document.getElementById('story-pool');
+    const allCards = pool ? [...pool.children] : [];
+    const STATUSES = [['all', 'All'], ['backlog', 'Backlog'], ['todo', 'To Do'], ['inprogress', 'In Progress'], ['inreview', 'In Review'], ['done', 'Done']];
+    let currentFilter = 'all';
+
+    function applyFilter(key) {
+      currentFilter = key;
+      allCards.forEach((c) => { c.style.display = (key === 'all' || c.dataset.status === key) ? '' : 'none'; });
+      if (listFilter) listFilter.querySelectorAll('.filter-tag').forEach((t) => t.classList.toggle('active', t.dataset.filter === key));
+    }
+    function buildFilter() {
+      if (!listFilter) return;
+      listFilter.innerHTML = '';
+      STATUSES.forEach(([key, label]) => {
+        const count = key === 'all' ? allCards.length : allCards.filter((c) => c.dataset.status === key).length;
+        if (key !== 'all' && count === 0) return;
+        const tag = document.createElement('button');
+        tag.type = 'button';
+        tag.className = 'filter-tag' + (key === currentFilter ? ' active' : '');
+        tag.dataset.filter = key;
+        tag.innerHTML = label + ' <span class="ft-count">' + count + '</span>';
+        tag.addEventListener('click', () => applyFilter(key));
+        listFilter.appendChild(tag);
+      });
+    }
+    function applyLayout(layout) {
+      const list = layout === 'list';
+      if (board) board.hidden = list;
+      if (boardList) boardList.hidden = !list;
+      if (listFilter) listFilter.hidden = !list;
+      if (list && boardList) {
+        allCards.forEach((card) => boardList.appendChild(card));
+        applyFilter(currentFilter);
+      } else if (board) {
+        allCards.forEach((card) => { card.style.display = ''; });
+        board.querySelectorAll('.board-col').forEach((col) => {
+          const wrap = col.querySelector('.board-cards');
+          const cards = allCards.filter((c) => c.dataset.status === col.dataset.status);
+          wrap.innerHTML = '';
+          cards.forEach((card) => wrap.appendChild(card));
+          const count = col.querySelector('.col-count');
+          if (count) count.textContent = cards.length;
+          if (!cards.length) wrap.innerHTML = '<p class="col-empty">—</p>';
+        });
+      }
+      document.querySelectorAll('.layout-switch button').forEach((b) =>
+        b.classList.toggle('active', b.dataset.layout === layout));
+    }
+    if (allCards.length) { buildFilter(); applyLayout('board'); }
+    document.querySelectorAll('.layout-switch button').forEach((btn) =>
+      btn.addEventListener('click', () => applyLayout(btn.dataset.layout)));
+
+    // Story detail dialog: a card shows only its title; clicking opens the rest.
+    const storyDialog = document.getElementById('story-dialog');
+    if (storyDialog) {
+      const openStory = (card) => {
+        document.getElementById('dialog-id').textContent = card.querySelector('.story-id')?.textContent || '';
+        document.getElementById('dialog-title').textContent = card.querySelector('.story-title')?.textContent || '';
+        document.getElementById('dialog-body').innerHTML = card.querySelector('.story-full')?.innerHTML || '';
+        storyDialog.showModal();
+      };
+      allCards.forEach((card) => {
+        card.addEventListener('click', () => openStory(card));
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openStory(card); }
+        });
+      });
+      document.getElementById('dialog-close').addEventListener('click', () => storyDialog.close());
+      storyDialog.addEventListener('click', (event) => {
+        if (event.target === storyDialog) storyDialog.close();
+      });
+    }
+  </script>
+</body>
+</html>
+HTML
+} > "$output_file"
+
+rm -f "$content_file" "$enriched_source_file"
+
+echo "Generated $output_file"
+
+if command -v open >/dev/null 2>&1; then
+  open "$output_file"
+elif command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "$output_file" >/dev/null 2>&1 &
+fi

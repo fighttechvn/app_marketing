@@ -74,6 +74,7 @@ credentials in a `.env`:
 - [The integrated site](/guides/the-site/) — how `/`, `/playground/`, `/docs/` fit together.
 - [Generate store screenshots (agent prompts)](/guides/screenshot-prompts/).
 - [Build a macOS desktop app](/guides/desktop-app/).
+- [Requirements spec (SRS)](https://fighttechvn.github.io/app_marketing/srs-index.html) — the full product spec with **Docs / Flow / Board** views.
 
 ## Troubleshooting
 

@@ -4,6 +4,19 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
 `desktop-v<version>` and published to
 [GitHub Releases](https://github.com/fighttechvn/app_marketing/releases).
 
+## 0.4.1 — 2026-06-25
+
+**Windows launch fix.**
+
+### Fixed
+- Windows build showed a blank window / `127.0.0.1 refused to connect` shortly after
+  launch. The Tauri shell stopped draining the sidecar's output after reading the
+  `READY` line, so the Python server's stdout/stderr pipe filled and the server
+  stalled/exited on Windows. The shell now keeps draining output for the app's
+  lifetime and owns the sidecar process for the whole session; the server also no
+  longer logs each request to stderr. The `READY` line is matched precisely so an
+  unrelated log line can't open the window on the wrong URL.
+
 ## 0.3.0 — 2026-06-25
 
 **Playground preview panel + real-device mirroring.**

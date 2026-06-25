@@ -116,7 +116,9 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).ok();
             let data_dir = data_dir.to_string_lossy().to_string();
 
-            let (mut rx, _child) = app
+            // `child` is MOVED into the long-lived task below (not dropped at the end of
+            // setup) so the sidecar lives for the whole app session.
+            let (mut rx, child) = app
                 .shell()
                 .sidecar("serve")
                 .expect("sidecar `serve` not found")
@@ -125,27 +127,43 @@ pub fn run() {
                 .expect("failed to spawn sidecar");
 
             tauri::async_runtime::spawn(async move {
+                let _child = child; // keep the sidecar alive as long as this task runs
+                let mut opened = false;
+                // Keep draining stdout/stderr for the app's lifetime. If we stop reading
+                // (e.g. break after the first line), the sidecar's output pipe fills on
+                // Windows and the Python server blocks/dies — the window then loads a
+                // server that's no longer listening (ERR_CONNECTION_REFUSED).
                 while let Some(event) = rx.recv().await {
-                    if let CommandEvent::Stdout(line) = event {
-                        let text = String::from_utf8_lossy(&line);
-                        if let Some(url) = text.split_whitespace().find(|t| t.starts_with("http://")) {
-                            let url = url.trim().to_string();
-                            let h = handle.clone();
-                            let _ = handle.run_on_main_thread(move || {
-                                if h.get_webview_window("main").is_none() {
-                                    let _ = WebviewWindowBuilder::new(
-                                        &h,
-                                        "main",
-                                        WebviewUrl::External(url.parse().unwrap()),
-                                    )
-                                    .title("AppPreview")
-                                    .inner_size(1240.0, 840.0)
-                                    .min_inner_size(900.0, 640.0)
-                                    .build();
-                                }
-                            });
-                            break;
-                        }
+                    let line = match event {
+                        CommandEvent::Stdout(b) | CommandEvent::Stderr(b) => b,
+                        _ => continue,
+                    };
+                    if opened {
+                        continue; // drain and discard once the window is up
+                    }
+                    let text = String::from_utf8_lossy(&line);
+                    // Match the sidecar's READY contract precisely (`READY http://127.0.0.1:<port>/`)
+                    // so an unrelated log line containing a URL can't hijack the window.
+                    if !text.contains("READY") {
+                        continue;
+                    }
+                    if let Some(url) = text.split_whitespace().find(|t| t.starts_with("http://")) {
+                        let url = url.trim().to_string();
+                        opened = true;
+                        let h = handle.clone();
+                        let _ = handle.run_on_main_thread(move || {
+                            if h.get_webview_window("main").is_none() {
+                                let _ = WebviewWindowBuilder::new(
+                                    &h,
+                                    "main",
+                                    WebviewUrl::External(url.parse().unwrap()),
+                                )
+                                .title("AppPreview")
+                                .inner_size(1240.0, 840.0)
+                                .min_inner_size(900.0, 640.0)
+                                .build();
+                            }
+                        });
                     }
                 }
             });

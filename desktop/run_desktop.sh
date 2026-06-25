@@ -21,5 +21,13 @@ if [ "${1:-}" = "--rebuild-sidecar" ] || [ ! -f "src-tauri/binaries/serve-$TRIPL
 fi
 
 [ -d node_modules ] || npm install
+
+# tauri.conf.json references src-tauri/icons/*, which are generated (not committed)
+# from the committed icon-source.png. The .dmg build (scripts/build.sh) does this;
+# dev mode must too, or generate_context!() fails to open icons/32x32.png.
+if [ ! -f "src-tauri/icons/icon.icns" ] && [ -f "src-tauri/icon-source.png" ]; then
+  echo "→ generating app icons (from icon-source.png)"
+  npx --yes @tauri-apps/cli icon src-tauri/icon-source.png
+fi
 echo "→ launching desktop app (Tauri dev)…"
 exec npx --yes @tauri-apps/cli dev

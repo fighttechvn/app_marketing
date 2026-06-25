@@ -121,6 +121,87 @@
   .gfx .card .spec{font-size:12px;color:var(--muted);text-align:center;line-height:1.5}
   .gfx .card .miss{font-size:13px;color:var(--bad);padding:30px 16px;text-align:center}
 
+  /* ============ Preview panel (right rail + slide-in) ============ */
+  .pp-rail{position:fixed;top:0;right:0;height:100vh;width:54px;z-index:60;
+    background:rgba(255,255,255,.92);backdrop-filter:blur(14px);border-left:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0}
+  .pp-rail .rb{width:40px;height:40px;border:1px solid transparent;border-radius:11px;background:transparent;
+    cursor:pointer;font-size:19px;display:grid;place-items:center;color:var(--muted);transition:.15s}
+  .pp-rail .rb:hover{background:#ececf0;color:var(--ink)}
+  .pp-rail .rb.active{background:#fff;border-color:#bcbcc2;color:var(--apple-blue);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .pp-rail .sp{flex:1}
+  body.pp-open{padding-right:0}
+  .pp-panel{position:fixed;top:0;right:54px;height:100vh;width:440px;max-width:90vw;z-index:59;
+    background:var(--card);border-left:1px solid var(--line);box-shadow:-18px 0 50px rgba(0,0,0,.10);
+    transform:translateX(calc(100% + 54px));transition:transform .26s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column}
+  .pp-panel.open{transform:translateX(0)}
+  .pp-resize{position:absolute;left:-4px;top:0;width:8px;height:100%;cursor:ew-resize;z-index:2}
+  .pp-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-shrink:0}
+  .pp-head .t{font-weight:700;font-size:14px}
+  .pp-head .sp{flex:1}
+  .pp-head button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 9px;font-size:13px;cursor:pointer;color:var(--muted)}
+  .pp-head button:hover{color:var(--ink);border-color:#bcbcc2}
+  .pp-body{flex:1;overflow:auto;display:flex;flex-direction:column;min-height:0}
+  .pp-bar{display:flex;gap:7px;padding:10px 12px;border-bottom:1px solid var(--line);flex-shrink:0;flex-wrap:wrap;align-items:center}
+  .pp-bar input[type=text]{flex:1;min-width:120px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;outline:none}
+  .pp-bar input[type=text]:focus{border-color:var(--apple-blue)}
+  .pp-bar button,.pp-mini{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 11px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)}
+  .pp-bar button:hover,.pp-mini:hover{border-color:#bcbcc2;background:#f7f7f9}
+  .pp-bar button.go{background:var(--apple-blue);color:#fff;border-color:var(--apple-blue)}
+  .pp-content{flex:1;overflow:auto;position:relative}
+  .pp-content iframe{width:100%;height:100%;border:0;background:#fff}
+  .pp-empty{padding:40px 22px;text-align:center;color:var(--muted);font-size:14px;line-height:1.6}
+  .pp-empty .big{font-size:38px;margin-bottom:10px}
+  .pp-note{font-size:12px;color:var(--muted);padding:8px 12px;background:#fafafa;border-top:1px solid var(--line)}
+  /* media */
+  .pp-media{display:flex;align-items:center;justify-content:center;height:100%;padding:14px;background:#1c1c1e}
+  .pp-media img,.pp-media video{max-width:100%;max-height:100%;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+  .pp-media audio{width:90%}
+  /* markdown */
+  .pp-md{padding:20px 24px;line-height:1.65;font-size:14.5px;color:#2a2a2e;max-width:100%}
+  .pp-md h1,.pp-md h2,.pp-md h3{line-height:1.3;margin:1.1em 0 .5em}
+  .pp-md h1{font-size:24px;border-bottom:1px solid var(--line);padding-bottom:.3em}
+  .pp-md h2{font-size:20px}.pp-md h3{font-size:16px}
+  .pp-md p{margin:.6em 0}.pp-md ul,.pp-md ol{padding-left:1.4em;margin:.5em 0}
+  .pp-md code{background:#ececf0;padding:2px 6px;border-radius:5px;font-size:.88em}
+  .pp-md pre{background:#1c1c1e;color:#e6e6e6;padding:14px;border-radius:10px;overflow:auto}
+  .pp-md pre code{background:transparent;color:inherit;padding:0}
+  .pp-md a{color:var(--apple-blue)}.pp-md blockquote{border-left:3px solid var(--line);margin:.6em 0;padding-left:1em;color:var(--muted)}
+  .pp-md img{max-width:100%;border-radius:8px}
+  .pp-md table{border-collapse:collapse;margin:.6em 0}.pp-md td,.pp-md th{border:1px solid var(--line);padding:6px 10px}
+  /* android */
+  .pp-and{display:flex;flex-direction:column;height:100%;background:#161618}
+  .pp-and .scr{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;padding:10px}
+  .pp-and .scr img{max-width:100%;max-height:100%;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);
+    cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:none}
+  /* touch feedback: red ripple at the tap point + fading line for swipes */
+  .pp-and .scr .ripple{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
+    border:2.5px solid #ff3b30;background:radial-gradient(circle,rgba(255,59,48,.40),rgba(255,59,48,0) 70%);
+    pointer-events:none;z-index:6;animation:ppRipple .55s cubic-bezier(.22,.61,.36,1) forwards}
+  .pp-and .scr .ripple.end{border-color:#ff9f0a;background:radial-gradient(circle,rgba(255,159,10,.40),rgba(255,159,10,0) 70%)}
+  @keyframes ppRipple{0%{transform:scale(.35);opacity:.95}100%{transform:scale(2.4);opacity:0}}
+  .pp-and .scr .swipe-line{position:absolute;height:3px;margin-top:-1.5px;transform-origin:0 50%;border-radius:3px;
+    background:linear-gradient(90deg,rgba(255,59,48,0),rgba(255,59,48,.9));pointer-events:none;z-index:5;
+    animation:ppFade .6s ease-out forwards}
+  @keyframes ppFade{0%{opacity:.9}100%{opacity:0}}
+  .pp-and .scr .nodev{color:#9a9aa0;text-align:center;font-size:14px;line-height:1.7;padding:20px}
+  .pp-and .navbar{display:flex;justify-content:center;gap:26px;padding:10px 0;background:#0f0f10;border-top:1px solid #2a2a2c}
+  .pp-and .navbar button{width:40px;height:34px;border:0;background:transparent;color:#cfcfd2;font-size:18px;
+    border-radius:8px;cursor:pointer}
+  .pp-and .navbar button:hover{background:#2a2a2c;color:#fff}
+  .pp-and .keyrow{display:flex;gap:6px;padding:8px 10px;background:#0f0f10;border-top:1px solid #2a2a2c;align-items:center}
+  .pp-and .keyrow input{flex:1;background:#1c1c1e;border:1px solid #2a2a2c;color:#eee;border-radius:8px;padding:7px 10px;font-size:13px;outline:none}
+  .pp-and .keyrow button{background:#2a2a2c;border:0;color:#eee;border-radius:8px;padding:7px 11px;font-size:13px;cursor:pointer}
+  .pp-and .keyrow button:hover{background:#3a3a3d}
+  .pp-and select{background:#1c1c1e;border:1px solid #2a2a2c;color:#eee;border-radius:7px;padding:5px 8px;font-size:12px;max-width:160px}
+  .pp-and .tools{display:flex;gap:7px;padding:8px 10px;align-items:center;background:#0f0f10;border-bottom:1px solid #2a2a2c;flex-wrap:wrap}
+  .pp-and .tools .st{color:#9a9aa0;font-size:11.5px;margin-left:auto}
+  .pp-and .tools .st b{color:#5fd08a}
+  .pp-and .tools button{background:#2a2a2c;border:0;color:#eee;border-radius:7px;padding:5px 9px;font-size:12px;cursor:pointer}
+  .pp-and .tools button:hover{background:#3a3a3d}
+  .pp-and .tools button.live{background:#1a9c54}
+
   /* ============ ASO panel ============ */
   .aso{margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
   .aso h3{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
@@ -365,6 +446,26 @@
     <small>This is the live store listing (read-only). Switch to <b>New</b> to update screenshots.</small></div>
 </div>
 <div class="toast" id="toast"></div>
+
+<!-- ===== Preview panel: right icon rail + slide-in pane ===== -->
+<div class="pp-rail" id="ppRail">
+  <button class="rb" data-pp="web" title="Web preview — load any URL in a frame">🌐</button>
+  <button class="rb" data-pp="media" title="Media — open an image / video / audio file">🖼️</button>
+  <button class="rb" data-pp="md" title="Markdown — render a .md file">📄</button>
+  <button class="rb" data-pp="android" title="Android — mirror &amp; remote-control a device (adb / scrcpy)">📱</button>
+  <div class="sp"></div>
+  <button class="rb" id="ppClose2" title="Hide panel">✕</button>
+</div>
+<div class="pp-panel" id="ppPanel">
+  <div class="pp-resize" id="ppResize"></div>
+  <div class="pp-head">
+    <span class="t" id="ppTitle">Preview</span><span class="sp"></span>
+    <button id="ppPop" title="Open current target in a new tab">↗</button>
+    <button id="ppClose" title="Close">✕</button>
+  </div>
+  <div class="pp-body" id="ppBody"></div>
+</div>
+<input type="file" id="ppFile" class="hidden">
 
 <script>
 const LIM = {
@@ -1305,6 +1406,235 @@ window.__openFolder = async function(path){
   lb.addEventListener('click',e=>{ if(e.target!==img) close(); });          // backdrop closes; image stays
   document.getElementById('lbClose').onclick=e=>{ e.stopPropagation(); close(); };
   document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !lb.classList.contains('hidden')){ close(); } });
+})();
+// ============================================================================
+// Preview panel — right-rail tool with Web / Media / Markdown / Android tabs.
+// Self-contained: talks to /api/adb/* and /api/preview-file added in serve.py.
+// ============================================================================
+(function(){
+  const rail=document.getElementById('ppRail'), panel=document.getElementById('ppPanel'),
+        body=document.getElementById('ppBody'), titleEl=document.getElementById('ppTitle'),
+        fileInput=document.getElementById('ppFile'), popBtn=document.getElementById('ppPop');
+  if(!rail||!panel) return;
+  let cur=null, lastTarget=null, objUrl=null;
+  const last={web:'', md:'', media:''};
+
+  const setActive=t=>rail.querySelectorAll('.rb[data-pp]').forEach(b=>b.classList.toggle('active',b.dataset.pp===t));
+  const openPanel=()=>{ panel.classList.add('open'); document.body.classList.add('pp-open'); };
+  function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('pp-open'); setActive(null); stopAndroid(); cur=null; }
+  function revoke(){ if(objUrl){ URL.revokeObjectURL(objUrl); objUrl=null; } }
+
+  function show(tab){
+    if(cur===tab){ closePanel(); return; }   // clicking the active icon toggles closed
+    stopAndroid(); revoke();
+    cur=tab; setActive(tab); openPanel();
+    ({web:renderWeb, media:renderMedia, md:renderMd, android:renderAndroid}[tab])();
+  }
+  rail.querySelectorAll('.rb[data-pp]').forEach(b=>b.onclick=()=>show(b.dataset.pp));
+  document.getElementById('ppClose').onclick=closePanel;
+  document.getElementById('ppClose2').onclick=closePanel;
+  popBtn.onclick=()=>{ if(lastTarget) window.open(lastTarget,'_blank'); };
+
+  // ---- resize drag ----
+  (function(){ const h=document.getElementById('ppResize'); let sx,sw;
+    h.addEventListener('pointerdown',e=>{ sx=e.clientX; sw=panel.offsetWidth; h.setPointerCapture(e.pointerId);
+      const mv=ev=>{ const w=Math.min(Math.max(sw+(sx-ev.clientX),320), window.innerWidth-80); panel.style.width=w+'px'; };
+      const up=()=>{ document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up); };
+      document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up); }); })();
+
+  // ---- WEB ----
+  function renderWeb(){
+    titleEl.textContent='Web preview';
+    body.innerHTML=`<div class="pp-bar">
+        <input type="text" id="ppUrl" placeholder="https://example.com  ·  or a local path /docs/" value="${esc(last.web)}">
+        <button class="go" id="ppGo">Go</button></div>
+      <div class="pp-content" id="ppC"><div class="pp-empty"><div class="big">🌐</div>Enter a URL to preview it inline.<br><small>Sites that block framing (X-Frame-Options) won't load — use ↗ to open in a tab.</small></div></div>`;
+    const url=body.querySelector('#ppUrl'), go=()=>{ let u=url.value.trim(); if(!u) return;
+      if(!/^(https?:|\/)/i.test(u)) u='https://'+u; last.web=u; lastTarget=u;
+      body.querySelector('#ppC').innerHTML=`<iframe src="${esc(u)}" referrerpolicy="no-referrer"></iframe>`; };
+    body.querySelector('#ppGo').onclick=go;
+    url.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+    url.focus();
+  }
+
+  // ---- MEDIA ----
+  function renderMedia(){
+    titleEl.textContent='Media';
+    body.innerHTML=`<div class="pp-bar">
+        <button id="ppOpen">📂 Open file…</button>
+        <input type="text" id="ppPath" placeholder="…or paste an absolute path">
+        <button id="ppLoad">Load</button></div>
+      <div class="pp-content pp-media" id="ppC"><div class="pp-empty"><div class="big">🖼️</div>Open an image, video, or audio file.</div></div>`;
+    body.querySelector('#ppOpen').onclick=()=>{ fileInput.accept='image/*,video/*,audio/*'; fileInput.onchange=pickMedia; fileInput.click(); };
+    const loadPath=()=>{ const p=body.querySelector('#ppPath').value.trim(); if(p) showMedia('/api/preview-file?path='+encodeURIComponent(p), p.split('/').pop()); };
+    body.querySelector('#ppLoad').onclick=loadPath;
+    body.querySelector('#ppPath').addEventListener('keydown',e=>{ if(e.key==='Enter') loadPath(); });
+  }
+  function pickMedia(e){ const f=e.target.files[0]; if(!f) return; revoke(); objUrl=URL.createObjectURL(f); showMedia(objUrl,f.name,f.type); }
+  function showMedia(src,name,type){
+    lastTarget=src; const ext=(name||'').toLowerCase();
+    const isVid=type?/^video/.test(type):/\.(mp4|webm|mov|m4v|ogv)$/.test(ext);
+    const isAud=type?/^audio/.test(type):/\.(mp3|wav|m4a|aac|ogg|flac)$/.test(ext);
+    const c=body.querySelector('#ppC');
+    c.innerHTML = isVid?`<video src="${esc(src)}" controls autoplay></video>`
+      : isAud?`<audio src="${esc(src)}" controls autoplay></audio>`
+      : `<img src="${esc(src)}" alt="${esc(name||'')}">`;
+  }
+
+  // ---- MARKDOWN ----
+  function renderMd(){
+    titleEl.textContent='Markdown';
+    body.innerHTML=`<div class="pp-bar">
+        <button id="ppOpen">📂 Open .md…</button>
+        <input type="text" id="ppPath" placeholder="…or paste a path to a .md file">
+        <button id="ppLoad">Render</button></div>
+      <div class="pp-content" id="ppC"><div class="pp-md"><div class="pp-empty"><div class="big">📄</div>Open a Markdown file to render it.</div></div></div>`;
+    body.querySelector('#ppOpen').onclick=()=>{ fileInput.accept='.md,.markdown,.mdx,text/markdown,text/plain'; fileInput.onchange=pickMd; fileInput.click(); };
+    const loadPath=()=>{ const p=body.querySelector('#ppPath').value.trim(); if(!p) return; lastTarget='/api/preview-file?path='+encodeURIComponent(p);
+      fetch(lastTarget).then(r=>r.ok?r.text():Promise.reject(r.status)).then(t=>paintMd(t)).catch(err=>paintMd('> ⚠️ Could not load: '+err)); };
+    body.querySelector('#ppLoad').onclick=loadPath;
+    body.querySelector('#ppPath').addEventListener('keydown',e=>{ if(e.key==='Enter') loadPath(); });
+  }
+  function pickMd(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>paintMd(r.result); r.readAsText(f); }
+  function paintMd(text){ body.querySelector('#ppC').innerHTML='<div class="pp-md">'+mdToHtml(text)+'</div>'; }
+  // tiny, safe-ish Markdown → HTML (escapes first, then applies inline + block rules)
+  function mdToHtml(src){
+    src=(src||'').replace(/\r\n?/g,'\n');
+    const fences=[]; src=src.replace(/```[ \t]*[\w+#.-]*\n?([\s\S]*?)```/g,(m,c)=>{ fences.push(c.replace(/\n$/,'')); return '\n F'+(fences.length-1)+' \n'; });
+    const inline=s=>esc(s)
+      .replace(/`([^`]+)`/g,'<code>$1</code>')
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g,'<img alt="$1" src="$2">')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/(^|[^_])_([^_]+)_/g,'$1<em>$2</em>');
+    const lines=src.split('\n'); let html='', i=0;
+    while(i<lines.length){
+      let l=lines[i];
+      let mf=l.match(/^ F(\d+) $/);
+      if(mf){ html+='<pre><code>'+esc(fences[+mf[1]])+'</code></pre>'; i++; continue; }
+      if(/^\s*$/.test(l)){ i++; continue; }
+      let h=l.match(/^(#{1,6})\s+(.*)$/); if(h){ html+=`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`; i++; continue; }
+      if(/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)){ html+='<hr>'; i++; continue; }
+      if(/^\s*>\s?/.test(l)){ let b=[]; while(i<lines.length&&/^\s*>\s?/.test(lines[i])){ b.push(lines[i].replace(/^\s*>\s?/,'')); i++; } html+='<blockquote>'+inline(b.join(' '))+'</blockquote>'; continue; }
+      if(/^\s*[-*+]\s+/.test(l)){ html+='<ul>'; while(i<lines.length&&/^\s*[-*+]\s+/.test(lines[i])){ html+='<li>'+inline(lines[i].replace(/^\s*[-*+]\s+/,''))+'</li>'; i++; } html+='</ul>'; continue; }
+      if(/^\s*\d+\.\s+/.test(l)){ html+='<ol>'; while(i<lines.length&&/^\s*\d+\.\s+/.test(lines[i])){ html+='<li>'+inline(lines[i].replace(/^\s*\d+\.\s+/,''))+'</li>'; i++; } html+='</ol>'; continue; }
+      let p=[]; while(i<lines.length&&!/^\s*$/.test(lines[i])&&!/^(#{1,6}\s|\s*[-*+]\s|\s*\d+\.\s|\s*>| F)/.test(lines[i])){ p.push(lines[i]); i++; }
+      html+='<p>'+inline(p.join(' '))+'</p>';
+    }
+    return html;
+  }
+
+  // ---- ANDROID (mirror + remote control via adb; scrcpy for native window) ----
+  let andLive=false, andSerial=null, andImg=null, andGen=0;
+  function stopAndroid(){ andLive=false; andGen++; andImg=null; }
+  function renderAndroid(){
+    titleEl.textContent='Android';
+    body.innerHTML=`<div class="pp-and">
+      <div class="tools">
+        <select id="andDev"><option>scanning…</option></select>
+        <button id="andRefresh" title="Rescan devices">⟳</button>
+        <button id="andLiveBtn" title="Toggle live mirror">▶ Live</button>
+        <button id="andScrcpy" title="Open a native scrcpy window (high FPS)">scrcpy ↗</button>
+        <span class="st" id="andSt"></span>
+      </div>
+      <div class="scr" id="andScr"><div class="nodev">Connect a device with USB debugging,<br>then press ⟳.</div></div>
+      <div class="navbar">
+        <button data-key="recents" title="Recent apps">▭</button>
+        <button data-key="home" title="Home">○</button>
+        <button data-key="back" title="Back">◁</button>
+        <button data-key="voldown" title="Volume −">🔉</button>
+        <button data-key="volup" title="Volume +">🔊</button>
+        <button data-key="power" title="Power">⏻</button>
+      </div>
+      <div class="keyrow">
+        <input id="andText" placeholder="Type text → Send to device">
+        <button id="andSend">Send</button>
+        <button data-key="enter" title="Enter">⏎</button>
+        <button data-key="backspace" title="Backspace">⌫</button>
+      </div></div>`;
+    body.querySelector('#andRefresh').onclick=loadDevices;
+    body.querySelector('#andLiveBtn').onclick=toggleLive;
+    body.querySelector('#andScrcpy').onclick=launchScrcpy;
+    body.querySelector('#andDev').onchange=e=>{ andSerial=e.target.value||null; if(andLive){ stopAndroid(); startLive(); } else snap(); };
+    body.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>sendKey(b.dataset.key));
+    const ti=body.querySelector('#andText');
+    body.querySelector('#andSend').onclick=()=>{ const t=ti.value; if(t){ sendInput({action:'text',text:t}); ti.value=''; } };
+    ti.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const t=ti.value; if(t){ sendInput({action:'text',text:t}); ti.value=''; } } });
+    loadDevices();
+  }
+  function setSt(s){ const el=body.querySelector('#andSt'); if(el) el.innerHTML=s; }
+  async function loadDevices(){
+    setSt('scanning…');
+    try{ const d=await (await fetch('/api/adb/devices')).json();
+      const sel=body.querySelector('#andDev'); if(!sel) return;
+      if(!d.ok){ sel.innerHTML='<option>adb missing</option>'; setSt('⚠️ '+(d.error||'')); return; }
+      const ready=d.devices.filter(x=>x.state==='device');
+      if(!ready.length){ sel.innerHTML='<option value="">no device</option>'; setSt(d.devices.length?'device unauthorized':'no device'); paintNoDev(); return; }
+      sel.innerHTML=ready.map(x=>`<option value="${esc(x.serial)}">${esc(x.model||x.serial)}</option>`).join('');
+      if(!andSerial||!ready.some(x=>x.serial===andSerial)) andSerial=ready[0].serial;
+      sel.value=andSerial; setSt('<b>connected</b>'+(d.scrcpy?'':' · scrcpy n/a'));
+      startLive();
+    }catch(e){ setSt('⚠️ '+e); }
+  }
+  function paintNoDev(){ const scr=body.querySelector('#andScr'); if(scr) scr.innerHTML='<div class="nodev">No authorized device.<br>Allow USB debugging on the phone, then ⟳.</div>'; }
+  function frameUrl(){ return '/api/adb/screen?serial='+encodeURIComponent(andSerial||'')+'&t='+Date.now(); }
+  function ensureImg(){
+    const scr=body.querySelector('#andScr'); if(!scr) return null;
+    if(!andImg || !scr.contains(andImg)){ scr.innerHTML=''; andImg=new Image(); scr.appendChild(andImg); wireTouch(andImg); }
+    return andImg;
+  }
+  async function snap(){ const im=ensureImg(); if(!im) return; im.src=frameUrl(); }
+  function toggleLive(){ andLive?stopAndroid():startLive(); body.querySelector('#andLiveBtn')?.classList.toggle('live',andLive); }
+  function startLive(){
+    if(!andSerial){ paintNoDev(); return; }
+    andLive=true; const gen=++andGen; const im=ensureImg(); if(!im) return;
+    body.querySelector('#andLiveBtn')?.classList.add('live');
+    im.onload=()=>{ if(andLive&&gen===andGen) setTimeout(()=>{ if(andLive&&gen===andGen) im.src=frameUrl(); },90); };
+    im.onerror=()=>{ if(gen===andGen){ andLive=false; setSt('⚠️ stream error'); body.querySelector('#andLiveBtn')?.classList.remove('live'); } };
+    im.src=frameUrl();
+  }
+  // map a pointer position on the <img> to device pixel coords (uses natural size)
+  function devXY(im,e){ const r=im.getBoundingClientRect(); return {
+    x:Math.round((e.clientX-r.left)/r.width*(im.naturalWidth||r.width)),
+    y:Math.round((e.clientY-r.top)/r.height*(im.naturalHeight||r.height)) }; }
+  // position of a pointer event within the .scr container (for visual feedback)
+  function scrXY(e){ const scr=body.querySelector('#andScr'); if(!scr) return null;
+    const r=scr.getBoundingClientRect(); return {scr, x:e.clientX-r.left, y:e.clientY-r.top}; }
+  function fxRipple(p,end){ if(!p) return; const d=document.createElement('span');
+    d.className='ripple'+(end?' end':''); d.style.left=p.x+'px'; d.style.top=p.y+'px';
+    p.scr.appendChild(d); setTimeout(()=>d.remove(),600); }
+  function fxLine(a,b){ if(!a||!b) return; const len=Math.hypot(b.x-a.x,b.y-a.y); if(len<6) return;
+    const l=document.createElement('span'); l.className='swipe-line';
+    l.style.left=a.x+'px'; l.style.top=a.y+'px'; l.style.width=len+'px';
+    l.style.transform='rotate('+Math.atan2(b.y-a.y,b.x-a.x)+'rad'; a.scr.appendChild(l);
+    setTimeout(()=>l.remove(),650); }
+  function wireTouch(im){
+    let start=null, startPx=null, t0=0;
+    im.addEventListener('pointerdown',e=>{ e.preventDefault(); start=devXY(im,e); startPx=scrXY(e); t0=performance.now();
+      fxRipple(startPx);                              // instant feedback at the touch point
+      im.setPointerCapture(e.pointerId); });
+    im.addEventListener('pointerup',e=>{ if(!start) return; const end=devXY(im,e); const endPx=scrXY(e);
+      const dt=performance.now()-t0; const dist=Math.hypot(end.x-start.x,end.y-start.y);
+      if(dist<14&&dt<400) sendInput({action:'tap',x:start.x,y:start.y});
+      else { fxLine(startPx,endPx); fxRipple(endPx,true);   // swipe: trail line + end marker
+        sendInput({action:'swipe',x1:start.x,y1:start.y,x2:end.x,y2:end.y,ms:Math.min(Math.max(dt|0,60),800)}); }
+      start=null; startPx=null; });
+  }
+  async function sendInput(payload){
+    if(!andSerial) return; payload.serial=andSerial;
+    try{ await fetch('/api/adb/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(!andLive) setTimeout(snap,180); }catch(_){}
+  }
+  function sendKey(k){ sendInput({action:'key',key:k}); }
+  async function launchScrcpy(){
+    setSt('launching scrcpy…');
+    try{ const d=await (await fetch('/api/adb/scrcpy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serial:andSerial})})).json();
+      setSt(d.ok?(d.already?'scrcpy already open':'<b>scrcpy launched</b>'):'⚠️ '+(d.error||'failed')); }
+    catch(e){ setSt('⚠️ '+e); }
+  }
+
+  // Esc closes the panel (unless an editor/lightbox owns Escape already)
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&panel.classList.contains('open')&&cur) closePanel(); });
 })();
 loadVariant('new');
 </script>

@@ -10,6 +10,8 @@ src-tauri/binaries/
 .pyi-work/
 .pyi-spec/
 .icon-1024.png
+# local sidecar build venv (created to work around PEP 668)
+.venv-build/
 # signing secrets — never commit the cert / notary key / filled env
 .signing/*
 !.signing/signing.env.example

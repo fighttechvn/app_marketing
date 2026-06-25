@@ -10,7 +10,7 @@ Creds come from .app_dist/.env.prod (path via APP_DIST), same as the fastlane
 lanes: ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_P8, PLAYSTORE_SERVICE_ACCOUNT_JSON,
 PLAYSTORE_PACKAGE_NAME, BUNDLE_ID.
 """
-import os, sys, json, time, re, base64, shutil, http.server, urllib.request, urllib.error, urllib.parse
+import os, sys, json, time, re, base64, shutil, subprocess, mimetypes, http.server, urllib.request, urllib.error, urllib.parse
 
 # File-content env keys: exported base64 (single line) so the .env is self-contained
 # (no need to copy the .p8 / service-account JSON separately). Decoded on use.
@@ -376,6 +376,128 @@ def open_folder(path):
     ROOT = p
     return {"ok": True, **scan(p)}
 
+# ============================================================================
+# Preview panel — ADB (Android mirror / remote control) + local file preview.
+# Localhost-only server, so shelling out to adb/scrcpy and reading local files
+# for the preview pane is acceptable (no LAN exposure).
+# ============================================================================
+def _find_bin(name, env_key, extra=()):
+    """Locate a CLI tool. GUI-launched apps (Tauri) often have a minimal PATH that
+    omits the Android SDK and Homebrew, so fall back to common install locations."""
+    v = os.environ.get(env_key)
+    if v and (os.path.exists(v) or shutil.which(v)):
+        return v
+    w = shutil.which(name)
+    if w:
+        return w
+    home = os.path.expanduser("~")
+    cands = list(extra)
+    sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+    if sdk:
+        cands.append(os.path.join(sdk, "platform-tools", name))
+    cands += [os.path.join(home, "Library/Android/sdk/platform-tools", name),
+              os.path.join(home, "Android/Sdk/platform-tools", name),
+              "/opt/homebrew/bin/" + name, "/usr/local/bin/" + name, "/usr/bin/" + name]
+    for c in cands:
+        if os.path.exists(c):
+            return c
+    return name
+
+ADB = _find_bin("adb", "ADB_BIN")
+SCRCPY = _find_bin("scrcpy", "SCRCPY_BIN")
+_SCRCPY_PROCS = {}  # serial -> Popen (native high-FPS windows we launched)
+
+# input keyname -> Android keycode (https://developer.android.com/reference/android/view/KeyEvent)
+ADB_KEYS = {"back": 4, "home": 3, "recents": 187, "appswitch": 187, "power": 26,
+            "volup": 24, "voldown": 25, "menu": 82, "enter": 66, "del": 67,
+            "backspace": 67, "tab": 61, "search": 84, "play": 85, "wake": 224,
+            "up": 19, "down": 20, "left": 21, "right": 22, "camera": 27, "notif": 83}
+
+def _have(p):
+    return bool(p and (os.path.exists(p) or shutil.which(p)))
+
+def _adb_ok():
+    return _have(ADB)
+
+def _adb(args, serial=None, timeout=25, binary=False):
+    """Run an adb command. Returns (stdout, stderr, rc); stdout is bytes when binary."""
+    cmd = [ADB] + (["-s", serial] if serial else []) + list(args)
+    p = subprocess.run(cmd, capture_output=True, timeout=timeout)
+    out = p.stdout if binary else p.stdout.decode("utf-8", "replace")
+    return out, p.stderr.decode("utf-8", "replace"), p.returncode
+
+def adb_devices():
+    if not _adb_ok():
+        return {"ok": False, "error": "adb not found on PATH (set ADB_BIN)", "devices": []}
+    out, err, rc = _adb(["devices", "-l"], timeout=15)
+    devs = []
+    for line in out.splitlines()[1:]:
+        line = line.strip()
+        if not line or line.startswith("*"):
+            continue
+        parts = line.split()
+        serial, state = parts[0], (parts[1] if len(parts) > 1 else "")
+        model = next((t.split(":", 1)[1] for t in parts[2:] if t.startswith("model:")), "")
+        devs.append({"serial": serial, "state": state, "model": model.replace("_", " "),
+                     "scrcpy": serial in _SCRCPY_PROCS and _SCRCPY_PROCS[serial].poll() is None})
+    return {"ok": True, "devices": devs, "adb": ADB, "scrcpy": _have(SCRCPY)}
+
+def adb_screen(serial=None):
+    """Raw PNG of the current screen via `screencap -p` (binary stdout, no temp file)."""
+    out, err, rc = _adb(["exec-out", "screencap", "-p"], serial=serial, timeout=20, binary=True)
+    if rc != 0 or not out:
+        raise RuntimeError(err.strip() or "screencap failed")
+    return out
+
+def adb_input(body):
+    """Dispatch a remote-control gesture: tap / swipe / text / key / keyevent."""
+    serial = body.get("serial") or None
+    act = body.get("action")
+    if act == "tap":
+        _adb(["shell", "input", "tap", str(int(body["x"])), str(int(body["y"]))], serial=serial)
+    elif act == "swipe":
+        _adb(["shell", "input", "swipe", str(int(body["x1"])), str(int(body["y1"])),
+              str(int(body["x2"])), str(int(body["y2"])), str(int(body.get("ms", 120)))], serial=serial)
+    elif act == "text":
+        # adb input text wants %s for spaces and no shell metacharacters
+        t = str(body.get("text", "")).replace(" ", "%s")
+        _adb(["shell", "input", "text", t], serial=serial)
+    elif act == "key":
+        code = ADB_KEYS.get(str(body.get("key", "")).lower())
+        if code is None:
+            return {"ok": False, "error": f"unknown key {body.get('key')}"}
+        _adb(["shell", "input", "keyevent", str(code)], serial=serial)
+    elif act == "keyevent":
+        _adb(["shell", "input", "keyevent", str(int(body["code"]))], serial=serial)
+    else:
+        return {"ok": False, "error": f"unknown action {act}"}
+    return {"ok": True}
+
+def adb_scrcpy(serial=None):
+    """Launch (or focus) a native scrcpy window — high-FPS mirror with full input."""
+    if not _have(SCRCPY):
+        return {"ok": False, "error": "scrcpy not installed (brew install scrcpy)"}
+    proc = _SCRCPY_PROCS.get(serial or "")
+    if proc and proc.poll() is None:
+        return {"ok": True, "already": True}
+    cmd = [SCRCPY] + (["-s", serial] if serial else [])
+    _SCRCPY_PROCS[serial or ""] = subprocess.Popen(
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True)
+    return {"ok": True, "launched": True}
+
+def preview_file(path):
+    """Read a local file for the preview pane. Returns (bytes, content_type)."""
+    p = os.path.abspath(os.path.expanduser(path))
+    if not os.path.isfile(p):
+        raise FileNotFoundError(p)
+    ctype = mimetypes.guess_type(p)[0] or "application/octet-stream"
+    if p.lower().endswith((".md", ".markdown", ".mdx")):
+        ctype = "text/markdown; charset=utf-8"
+    with open(p, "rb") as f:
+        return f.read(), ctype
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kw):
         super().__init__(*args, directory=ROOT, **kw)
@@ -401,6 +523,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+    def _bin(self, code, body, ctype):
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
     def do_GET(self):
         route = self.path.split("?")[0]
         if route == "/api/sync":
@@ -418,6 +546,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try: self._json(200, env_dump())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
+        # ---- Preview panel: Android (adb) + local file preview ----
+        if route == "/api/adb/devices":
+            try: self._json(200, adb_devices())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/screen":
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                self._bin(200, adb_screen((q.get("serial") or [None])[0]), "image/png")
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/preview-file":
+            try:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                p = (q.get("path") or [""])[0]
+                body, ctype = preview_file(p)
+                self._bin(200, body, ctype)
+            except FileNotFoundError as e:
+                self._json(404, {"ok": False, "error": f"not found: {e}"})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
         return super().do_GET()
     def do_POST(self):
         route = self.path.split("?")[0]
@@ -431,6 +580,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         if route == "/api/apply-template":
             try: self._json(200, apply_template())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/input":
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+                self._json(200, adb_input(body))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/scrcpy":
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+                self._json(200, adb_scrcpy(body.get("serial") or None))
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         if route == "/api/test":

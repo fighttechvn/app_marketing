@@ -11,13 +11,6 @@ const BASE = process.env.SITE_BASE || '/docs';
 // Where the umbrella (landing + playground) lives. '' = origin root (local run.sh);
 // '/app_marketing' on GitHub Pages where the whole site sits under the repo path.
 const UMBRELLA = (process.env.UMBRELLA_BASE || '').replace(/\/$/, '');
-// The SRS report (srs-index.html) lives at the umbrella ROOT, outside the /docs
-// base. Starlight prefixes root-relative sidebar links with the docs base, so a
-// `/srs-index.html` link would wrongly become `<base>/srs-index.html` under /docs.
-// Use a full URL when on the umbrella (Pages) so it isn't base-prefixed; on a
-// plain local docs run (UMBRELLA='') the SRS page sits at the origin root.
-const ORIGIN = (process.env.SITE_ORIGIN || 'https://fighttechvn.github.io').replace(/\/$/, '');
-const SRS_LINK = process.env.SRS_LINK || (UMBRELLA ? `${ORIGIN}${UMBRELLA}/srs-index.html` : '/srs-index.html');
 
 // Astro does NOT prefix root-absolute links authored in Markdown/MDX with `base`.
 // Prefix doc-internal links (/guides, /reference, /api…) with the docs base, and
@@ -82,7 +75,7 @@ export default defineConfig({
         { label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] },
         { label: 'API reference (interactive)', link: '/api/' },
         { label: 'Changelog', link: '/changelog/' },
-        { label: 'SRS (Requirements)', link: SRS_LINK, attrs: { target: '_blank', rel: 'noopener' } },
+        { label: 'SRS (Requirements)', link: '/srs/' },
       ],
     }),
   ],

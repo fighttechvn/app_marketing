@@ -74,6 +74,7 @@ export default defineConfig({
         { label: 'Guides', items: [{ autogenerate: { directory: 'guides' } }] },
         { label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] },
         { label: 'API reference (interactive)', link: '/api/' },
+        { label: 'Changelog', link: '/changelog/' },
       ],
     }),
   ],

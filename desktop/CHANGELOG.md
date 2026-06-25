@@ -20,10 +20,15 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
   (for when the API key isn't the Account Holder and Apple returns 403).
 - **Auto-release CI** (`auto-release-dmg.yml`) — pushing a desktop version bump to
   `main` builds the `.dmg` and auto-creates the tag + Release.
+- **Signed CI builds** — the GitHub Actions pipeline now signs + notarizes on Apple's
+  runners (Apple Developer ID secrets configured), so released `.dmg`s are signed
+  whether cut locally or by CI.
 
 ### Changed
 - `appdist.sh` release notes now state **signed & notarized** when a Developer ID
   identity is configured (previously always "unsigned").
+- `appdist.sh` also uploads the updater artifacts (`latest.json`, `AppPreview.app.tar.gz`,
+  `.sig`) alongside the `.dmg`, so auto-update stays valid on locally cut releases.
 
 ### Notes
 - Builds are **Apple Silicon (aarch64)**. Intel/universal builds are not produced yet.

@@ -459,9 +459,8 @@
 
 <!-- ===== Preview panel: right icon rail + slide-in pane ===== -->
 <div class="pp-rail" id="ppRail">
-  <button class="rb" data-pp="web" title="Web preview — load any URL in a frame">🌐</button>
-  <button class="rb" data-pp="media" title="Media — open an image / video / audio file">🖼️</button>
-  <button class="rb" data-pp="md" title="Markdown — render a .md file">📄</button>
+  <!-- Web / Media / Markdown previews are link-triggered (click a link → it opens
+       here), so they're not shown as always-on rail buttons. Device mirrors stay. -->
   <button class="rb" data-pp="android" title="Android — mirror &amp; remote-control a device (adb / scrcpy)">📱</button>
   <button class="rb" data-pp="iphone" title="iPhone — mirror &amp; control a real device (WebDriverAgent)">🍎</button>
   <div class="sp"></div>
@@ -1435,16 +1434,43 @@ window.__openFolder = async function(path){
   function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('pp-open'); setActive(null); stopAndroid(); stopIos(); cur=null; }
   function revoke(){ if(objUrl){ URL.revokeObjectURL(objUrl); objUrl=null; } }
 
-  function show(tab){
-    if(cur===tab){ closePanel(); return; }   // clicking the active icon toggles closed
+  // open a tab without the toggle-closed behaviour (used by link clicks)
+  function openTab(tab){
     stopAndroid(); stopIos(); revoke();
     cur=tab; setActive(tab); openPanel();
     ({web:renderWeb, media:renderMedia, md:renderMd, android:renderAndroid, iphone:renderIphone}[tab])();
+  }
+  function show(tab){
+    if(cur===tab){ closePanel(); return; }   // clicking the active rail icon toggles closed
+    openTab(tab);
   }
   rail.querySelectorAll('.rb[data-pp]').forEach(b=>b.onclick=()=>show(b.dataset.pp));
   document.getElementById('ppClose').onclick=closePanel;
   document.getElementById('ppClose2').onclick=closePanel;
   popBtn.onclick=()=>{ if(lastTarget) window.open(lastTarget,'_blank'); };
+
+  // ---- link-triggered preview: clicking a link opens it here (web / media / md) ----
+  const MEDIA_RE=/\.(png|jpe?g|gif|webp|svg|bmp|avif|mp4|webm|mov|m4v|ogv|mp3|wav|m4a|aac|ogg|flac)(\?|$)/i;
+  const MD_RE=/\.(md|markdown|mdx)(\?|$)/i;
+  function openLink(url){
+    if(MEDIA_RE.test(url)){ openTab('media'); lastTarget=url; showMedia(url, url.split('/').pop().split('?')[0]); }
+    else if(MD_RE.test(url)){ openTab('md'); lastTarget=url;
+      fetch(url).then(r=>r.ok?r.text():Promise.reject(r.status)).then(paintMd).catch(e=>paintMd('> ⚠️ Could not load: '+e)); }
+    else { openTab('web'); const i=body.querySelector('#ppUrl'); if(i){ i.value=url; body.querySelector('#ppGo').click(); } }
+  }
+  window.ppOpenLink=openLink;   // also callable programmatically
+  document.addEventListener('click',e=>{
+    if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey) return;   // keep real new-tab / modified clicks
+    const a=e.target.closest('a[href]'); if(!a) return;
+    if(panel.contains(a)||rail.contains(a)) return;            // links inside the panel itself: leave alone
+    const href=a.getAttribute('href')||'';
+    if(!href||href.startsWith('#')||/^(javascript|mailto|tel):/i.test(href)) return;
+    if(a.hasAttribute('download')) return;
+    const abs=a.href;
+    if(!/^https?:/i.test(abs)) return;
+    e.preventDefault();                                        // open in the preview panel instead of navigating away
+    openLink(abs);
+  });
 
   // ---- resize drag ----
   (function(){ const h=document.getElementById('ppResize'); let sx,sw;

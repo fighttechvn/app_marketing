@@ -67,15 +67,28 @@ with **no credentials**. Only **Sync** and **Test keys** need API keys — see
 [environment variables reference](docs/src/content/docs/reference/env-variables.md).
 Set them in `.env` (gitignored) or import them in the tool, then **Test keys**.
 
-## Desktop app (macOS .dmg)
+## Desktop app (macOS .dmg + Windows .exe)
 
-Package the whole tool into a native macOS app with **Tauri + a Python sidecar**:
+Packaged as a native app with **Tauri + a Python sidecar**, for both platforms.
+
+**Download:** grab the latest installer from
+[Releases](https://github.com/fighttechvn/app_marketing/releases/latest) —
+`*.dmg` (macOS, signed & notarized) or `*-setup.exe` (Windows NSIS). Both
+auto-update (File ▸ Check for Updates…). The `.exe` isn't Authenticode-signed
+yet, so Windows SmartScreen may warn once → *More info ▸ Run anyway*.
+
+**Build locally (macOS):**
 
 ```bash
 cd desktop
 bash scripts/setup-prereqs.sh    # one-time: Rust, PyInstaller, deps
 bash scripts/build.sh            # → src-tauri/target/release/bundle/dmg/*.dmg
 ```
+
+Windows installers are produced by CI on a `windows-latest` runner (PyInstaller
+can't cross-compile the sidecar). Bumping the version in
+`desktop/src-tauri/tauri.conf.json` on `main` auto-builds **both** platforms and
+cuts a GitHub Release — see [.github/workflows/auto-release-dmg.yml](.github/workflows/auto-release-dmg.yml).
 
 See [desktop/README.md](desktop/README.md) and the
 [desktop-app guide](docs/src/content/docs/guides/desktop-app.md). Node is only used

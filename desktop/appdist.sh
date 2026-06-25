@@ -37,7 +37,13 @@ DMG="$(ls -t src-tauri/target/release/bundle/dmg/*.dmg 2>/dev/null | head -1 || 
 echo "→ artifact: $DMG"
 echo "→ repo: $REPO   tag: $TAG"
 
-NOTES="${NOTES:-$PRODUCT $VERSION — macOS desktop build (Tauri + Python sidecar). Unsigned: right-click → Open on first launch if Gatekeeper warns.}"
+# Signed+notarized when .signing/signing.env carries a Developer ID identity.
+if grep -q '^APPLE_SIGNING_IDENTITY=.\+' .signing/signing.env 2>/dev/null; then
+  SIGN_NOTE="Signed with Developer ID & notarized — opens without a Gatekeeper warning."
+else
+  SIGN_NOTE="Unsigned: right-click → Open on first launch if Gatekeeper warns."
+fi
+NOTES="${NOTES:-$PRODUCT $VERSION — macOS desktop build (Tauri + Python sidecar). $SIGN_NOTE}"
 
 # 3) Create the release if missing, else upload (clobber the same asset name).
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then

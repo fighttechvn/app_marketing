@@ -41,9 +41,28 @@ bash scripts/build.sh            # icons → sidecar (PyInstaller) → tauri bui
 
 ## Code signing & notarization
 
-Unsigned builds trigger a Gatekeeper warning on other Macs. To sign + notarize with
-an **Apple Developer Program** account, copy `desktop/.signing/signing.env.example`
-→ `signing.env` and drop your files in that folder:
+Unsigned builds trigger a Gatekeeper warning on other Macs ("AppPreview is damaged").
+
+### Auto-setup from an App Store Connect API key (recommended)
+
+Put your ASC API key in `desktop/.signing/signing.env` (`ASC_KEY_ID`,
+`ASC_ISSUER_ID`, `ASC_KEY_P8`) and run:
+
+```bash
+cd desktop && python3 scripts/setup-signing.py
+```
+
+It creates the **Developer ID Application** certificate via the App Store Connect
+API, imports it into your keychain, exports `DeveloperID.p12`, and writes the
+`APPLE_SIGNING_IDENTITY` / `APPLE_TEAM_ID` / `APPLE_CERTIFICATE_*` / `APPLE_API_*`
+values. Then `bash scripts/build.sh` produces a **signed + notarized** `.dmg` that
+opens with no warning. (Needs Apple Developer Program; the API key must have Admin /
+Account Holder access.)
+
+### Manual
+
+Or sign + notarize by hand: copy `signing.env.example` → `signing.env` and drop your
+files in that folder:
 
 ```
 desktop/.signing/

@@ -20,6 +20,7 @@ async fn check_update(app: tauri::AppHandle, manual: bool) {
     };
     match updater.check().await {
         Ok(Some(update)) => {
+            println!("[updater] update available: {} (current {})", update.version, app.package_info().version);
             let ok = app
                 .dialog()
                 .message(format!("Version {} is available. Download and install now?", update.version))
@@ -37,12 +38,14 @@ async fn check_update(app: tauri::AppHandle, manual: bool) {
             }
         }
         Ok(None) => {
+            println!("[updater] no update — on the latest version ({})", app.package_info().version);
             if manual {
                 app.dialog().message("You're on the latest version.")
                     .title("No updates").blocking_show();
             }
         }
         Err(e) => {
+            println!("[updater] check failed: {e}");
             if manual {
                 app.dialog().message(format!("Update check failed: {e}"))
                     .title("Update").blocking_show();

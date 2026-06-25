@@ -49,6 +49,21 @@ jobs:
             echo "→ no APPLE_API_KEY_B64 secret — unsigned/un-notarized build"
           fi
 
+      # Make the release version follow the tag (desktop-v0.4.0 → 0.4.0), so the
+      # built app + latest.json always match the tag and stay monotonic — no manual
+      # tauri.conf.json bump to forget. Existing installs then see the new version.
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VER="${GITHUB_REF_NAME#desktop-v}"; VER="${VER#v}"
+          python3 - "$VER" <<'PY'
+          import json, sys
+          p = "desktop/src-tauri/tauri.conf.json"
+          d = json.load(open(p)); d["version"] = sys.argv[1]
+          json.dump(d, open(p, "w"), indent=2); open(p, "a").write("\n")
+          print("→ release version set from tag:", sys.argv[1])
+          PY
+
       - name: Build .dmg (icons → sidecar → tauri)
         working-directory: desktop
         run: bash scripts/build.sh

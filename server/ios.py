@@ -7,30 +7,68 @@ device (Xcode or go-ios launch). NOTE: WDA gesture coords are logical POINTS
 (window/size), not screenshot pixels — the frontend maps clicks via the points
 size reported by status().
 """
-import os, json, time, base64, tempfile, subprocess, urllib.request
+import os, re, json, glob, time, base64, shutil, tempfile, subprocess, urllib.request
 from .util import find_bin, have, run
 
 IPROXY = find_bin("iproxy", "IPROXY_BIN")
 IDEVICE_ID = find_bin("idevice_id", "IDEVICE_ID_BIN")
 IDEVICEINFO = find_bin("ideviceinfo", "IDEVICEINFO_BIN")
-GO_IOS = find_bin("ios", "GO_IOS_BIN")     # danielpaulus/go-ios — launches WDA
-_RUNWDA = {"udid": None, "proc": None}     # the `ios runwda` process we started
+GO_IOS = find_bin("ios", "GO_IOS_BIN")     # danielpaulus/go-ios (device list / fallback)
+XCODEBUILD = shutil.which("xcodebuild") or "/usr/bin/xcodebuild"
+_RUNWDA = {"udid": None, "proc": None}     # the WDA runner (xcodebuild) we started
 _RUNWDA_LOG = os.path.join(tempfile.gettempdir(), "sp-runwda.log")
 
 
+def _wda_project():
+    """Locate a WebDriverAgent.xcodeproj — Appium's xcuitest driver bundles one."""
+    p = os.environ.get("WDA_PROJECT")
+    if p and os.path.exists(p):
+        return p
+    home = os.path.expanduser("~")
+    for pat in (home + "/.appium/node_modules/**/appium-webdriveragent/WebDriverAgent.xcodeproj",
+                home + "/**/appium-webdriveragent/WebDriverAgent.xcodeproj"):
+        hits = glob.glob(pat, recursive=True)
+        if hits:
+            return hits[0]
+    return ""
+
+
+def _wda_team(udid):
+    """Signing team: $WDA_TEAM_ID, else auto-detected from the installed WDA app."""
+    if os.environ.get("WDA_TEAM_ID"):
+        return os.environ["WDA_TEAM_ID"]
+    if _go_ok():
+        try:
+            out, _, _ = run([GO_IOS, "apps", "--udid=" + udid], timeout=20)
+            m = re.search(r'"application-identifier":"([A-Z0-9]+)\.com\.facebook\.WebDriverAgentRunner', out)
+            if m:
+                return m.group(1)
+        except Exception:
+            pass
+    return ""
+
+
+def _wda_ready():
+    try:
+        return bool(_wda("GET", "/status", timeout=3).get("value", {}).get("ready"))
+    except Exception:
+        return False
+
+
 def _runwda_err():
-    """Last meaningful error line from the runwda log (for diagnostics)."""
+    """Last meaningful error line from the WDA runner log (xcodebuild or go-ios)."""
     try:
         lines = [l for l in open(_RUNWDA_LOG, encoding="utf-8", errors="replace").read().splitlines() if l.strip()]
     except Exception:
         return ""
     for l in reversed(lines):
-        if '"level":"ERROR"' in l or "error" in l.lower():
+        low = l.lower()
+        if '"level":"error"' in low or "error:" in low or "failed" in low or "no profiles" in low:
             try:
-                return json.loads(l).get("error", l)[:200]
+                return json.loads(l).get("error", l)[:240]
             except Exception:
-                return l[:200]
-    return lines[-1][:200] if lines else ""
+                return l[:240]
+    return lines[-1][:240] if lines else ""
 WDA_HTTP_LOCAL, WDA_MJPEG_LOCAL = 8100, 9100
 WDA_BASE = "http://127.0.0.1:%d" % WDA_HTTP_LOCAL
 WDA_MJPEG = "http://127.0.0.1:%d" % WDA_MJPEG_LOCAL
@@ -81,47 +119,43 @@ def ios_devices():
 
 
 def ios_launch(udid):
-    """One-click WebDriverAgent launcher via go-ios. Automates everything that
-    doesn't need root; the iOS 17+ tunnel needs `sudo`, which a localhost web
-    button can't supply — so when the tunnel is down we return the one command
-    for the user to run, then they click again."""
+    """One-click WebDriverAgent launcher via `xcodebuild test` (Apple's own path —
+    works on iOS 18 where go-ios `runwda` can't, and needs NO sudo tunnel).
+    Returns immediately; the frontend polls /api/wda/status until it's up. First
+    build can take 1–3 min, subsequent launches ~15s (DerivedData is cached)."""
     udid = _ios_default(udid)
     if not udid:
         return {"ok": False, "error": "no device connected"}
-    if not _go_ok():
-        return {"ok": False, "need": "go-ios", "cmd": "npm install -g go-ios",
-                "hint": "Install go-ios (the `ios` CLI), then click Start WDA again."}
-    if not _tunnel_running():
-        return {"ok": False, "needsTunnel": True, "cmd": "sudo ios tunnel start",
-                "hint": "Start the iOS 17+ USB tunnel once (needs your password, keep it open), "
-                        "then click Start WDA again."}
-    # tunnel is up — (re)launch the WDA runner if ours isn't alive, logging output
-    # so a device-side failure (Developer Mode off / locked / untrusted) is surfaced.
+    # already up (e.g. launched from Xcode / a previous click)?
+    _ios_tunnel(udid)
+    if _wda_ready():
+        return {"ok": True, "running": True}
+    proj = _wda_project()
+    if not proj:
+        return {"ok": False, "error": "WebDriverAgent.xcodeproj not found",
+                "hint": "Install Appium's driver (`appium driver install xcuitest`) or set WDA_PROJECT."}
+    # (re)launch the runner if ours isn't alive
     p = _RUNWDA["proc"]
     if not (p and p.poll() is None):
+        team = _wda_team(udid)
+        cmd = [XCODEBUILD, "-project", proj, "-scheme", "WebDriverAgentRunner",
+               "-destination", "id=" + udid, "-allowProvisioningUpdates", "CODE_SIGNING_ALLOWED=YES"]
+        if team:
+            cmd.append("DEVELOPMENT_TEAM=" + team)
+        cmd.append("test")
         logf = open(_RUNWDA_LOG, "wb")
-        _RUNWDA["proc"] = subprocess.Popen([GO_IOS, "runwda", "--udid=" + udid],
-                                           stdout=logf, stderr=logf, start_new_session=True)
+        _RUNWDA["proc"] = subprocess.Popen(cmd, stdout=logf, stderr=logf,
+                                           start_new_session=True, cwd=os.path.dirname(proj))
         _RUNWDA["udid"] = udid
-    DEV_HINT = ("WDA couldn't launch on the device. On the iPhone: unlock it, enable "
-                "Settings ▸ Privacy & Security ▸ Developer Mode, and trust the developer app "
-                "(Settings ▸ General ▸ VPN & Device Management). Or run WebDriverAgentRunner "
-                "once from Xcode.")
-    # wait (bounded) for WDA's HTTP server to answer through the iproxy tunnel
-    for _ in range(20):
-        proc = _RUNWDA["proc"]
-        if proc and proc.poll() is not None:      # runwda exited → read why and stop early
-            return {"ok": False, "error": "WebDriverAgent failed to launch",
-                    "detail": _runwda_err(), "hint": DEV_HINT}
-        try:
-            _ios_tunnel(udid)
-            if _wda("GET", "/status", timeout=3):
-                return {"ok": True, "running": True}
-        except Exception:
-            pass
-        time.sleep(1)
-    return {"ok": True, "running": False, "launching": True,
-            "hint": "WebDriverAgent is starting — give it a few seconds, then press ⟳."}
+    time.sleep(3)
+    proc = _RUNWDA["proc"]
+    if proc and proc.poll() is not None:      # died immediately → signing/build error
+        return {"ok": False, "error": "WebDriverAgent failed to launch",
+                "detail": _runwda_err(),
+                "hint": "Signing failed — set WDA_TEAM_ID, or open WebDriverAgent.xcodeproj in "
+                        "Xcode once and pick a team. Make sure the iPhone is unlocked & trusted."}
+    return {"ok": True, "running": False, "launching": True, "team": _wda_team(udid), "project": proj,
+            "hint": "Building & launching WebDriverAgent… first time ~1–3 min, then it connects."}
 
 
 def _ios_tunnel(udid):
@@ -163,8 +197,9 @@ def _wda_session(udid):
     sid = res.get("sessionId") or (res.get("value") or {}).get("sessionId")
     _WDA_SID[udid] = sid
     try:
+        # tuned for a smooth live mirror over USB (high framerate, good quality)
         _wda("POST", "/session/%s/appium/settings" % sid,
-             {"settings": {"mjpegServerFramerate": 20, "mjpegServerScreenshotQuality": 25,
+             {"settings": {"mjpegServerFramerate": 30, "mjpegServerScreenshotQuality": 60,
                            "mjpegScalingFactor": 100}})
     except Exception:
         pass

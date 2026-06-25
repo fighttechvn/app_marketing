@@ -4,9 +4,12 @@
 #
 #   ./ios-wda-up.sh [UDID]
 #
-# Automates the whole go-ios sequence: install (if missing) → iOS 17+ USB tunnel
-# (asks for your password ONCE — required, only root can open the interface) →
-# runwda → wait until WDA answers. Then open the 🍎 iPhone tab and press ⟳.
+# Launches WDA the reliable way: `xcodebuild test` on Appium's bundled
+# WebDriverAgent project (works on iOS 18 where go-ios runwda can't, and needs
+# NO sudo tunnel). Builds+signs+installs+runs the runner, then waits until WDA
+# answers. Leave it running; open the 🍎 iPhone tab and it auto-connects.
+#
+# Signing: set WDA_TEAM_ID, or it auto-detects from the installed WDA app.
 set -euo pipefail
 
 UDID="${1:-}"
@@ -14,38 +17,34 @@ UDID="${1:-}"
 [ -n "$UDID" ] || { echo "✗ no iPhone detected — plug in & trust the device"; exit 1; }
 echo "→ device: $UDID"
 
-# 1) go-ios (the `ios` CLI)
-if ! command -v ios >/dev/null 2>&1; then
-  echo "→ installing go-ios (npm i -g go-ios)…"
-  npm install -g go-ios
+WDA_PROJ="${WDA_PROJECT:-$(ls -d "$HOME"/.appium/node_modules/**/appium-webdriveragent/WebDriverAgent.xcodeproj 2>/dev/null | head -1 || true)}"
+[ -n "$WDA_PROJ" ] || { echo "✗ WebDriverAgent.xcodeproj not found — run: appium driver install xcuitest"; exit 1; }
+echo "→ WDA project: $WDA_PROJ"
+
+# signing team — env override, else auto-detect from the installed WDA app
+TEAM="${WDA_TEAM_ID:-}"
+if [ -z "$TEAM" ] && command -v ios >/dev/null 2>&1; then
+  TEAM="$(ios apps --udid="$UDID" 2>/dev/null | grep -oE '"application-identifier":"[A-Z0-9]+\.com\.facebook\.WebDriverAgentRunner' | grep -oE '[A-Z0-9]+\.com' | cut -d. -f1 | head -1 || true)"
 fi
+[ -n "$TEAM" ] && echo "→ signing team: $TEAM"
 
-# 2) iOS 17+ RemoteXPC tunnel — needs root; skip if one is already running.
-if [ "$(ios tunnel ls 2>/dev/null)" = "[]" ] || [ -z "$(ios tunnel ls 2>/dev/null)" ]; then
-  echo "→ starting USB tunnel (sudo — enter your password; leave it running)…"
-  sudo nohup ios tunnel start >/tmp/ios-tunnel.log 2>&1 &
-  sleep 3
-else
-  echo "→ tunnel already running"
-fi
+echo "→ launching WebDriverAgent via xcodebuild (first build ~1–3 min)…"
+nohup xcodebuild -project "$WDA_PROJ" -scheme WebDriverAgentRunner \
+  -destination "id=$UDID" -allowProvisioningUpdates CODE_SIGNING_ALLOWED=YES \
+  ${TEAM:+DEVELOPMENT_TEAM=$TEAM} test > /tmp/wda-xcodebuild.log 2>&1 &
 
-# 3) WebDriverAgent runner
-echo "→ launching WebDriverAgent…"
-nohup ios runwda --udid="$UDID" >/tmp/ios-runwda.log 2>&1 &
-
-# 4) wait until WDA answers on :8100 (forwarded with iproxy)
 echo -n "→ waiting for WDA"
 pkill -f "iproxy 8100:8100" 2>/dev/null || true
 iproxy 8100:8100 -u "$UDID" >/dev/null 2>&1 &
 IPROXY_PID=$!
-for i in $(seq 1 40); do
-  if curl -s --max-time 2 http://127.0.0.1:8100/status >/dev/null 2>&1; then
+for i in $(seq 1 90); do
+  if curl -s --max-time 2 http://127.0.0.1:8100/status 2>/dev/null | grep -q '"ready":true'; then
     kill "$IPROXY_PID" 2>/dev/null || true
-    echo ""; echo "✓ WebDriverAgent is up — open the 🍎 iPhone tab and press ⟳"
+    echo ""; echo "✓ WebDriverAgent is up — open the 🍎 iPhone tab and press ⟳ (or it auto-connects)"
     exit 0
   fi
-  echo -n "."; sleep 1
+  echo -n "."; sleep 2
 done
 kill "$IPROXY_PID" 2>/dev/null || true
-echo ""; echo "⚠️  WDA didn't answer yet. Check /tmp/ios-runwda.log and /tmp/ios-tunnel.log, then retry."
+echo ""; echo "⚠️  WDA didn't answer. Check /tmp/wda-xcodebuild.log (signing?), or open the project in Xcode once."
 exit 1

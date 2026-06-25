@@ -209,6 +209,8 @@
   .pp-and .tools button{background:#2a2a2c;border:0;color:#eee;border-radius:7px;padding:5px 9px;font-size:12px;cursor:pointer}
   .pp-and .tools button:hover{background:#3a3a3d}
   .pp-and .tools button.live{background:#1a9c54}
+  .pp-and .tools button.accent{background:#0b7bff;color:#fff;font-weight:600}
+  .pp-and .tools button.accent:hover{background:#2f93ff}
 
   /* ============ ASO panel ============ */
   .aso{margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
@@ -1543,7 +1545,7 @@ window.__openFolder = async function(path){
         <select id="andDev"><option>scanning…</option></select>
         <button id="andRefresh" title="Rescan devices">⟳</button>
         <button id="andLiveBtn" title="Toggle live mirror">▶ Live</button>
-        <button id="andScrcpy" title="Open a native scrcpy window (high FPS)">scrcpy ↗</button>
+        <button id="andScrcpy" class="accent" title="Open a native scrcpy window — high-FPS mirror &amp; control">⚡ scrcpy</button>
         <span class="st" id="andSt"></span>
       </div>
       <div class="scr" id="andScr"><div class="nodev">Connect a device with USB debugging,<br>then press ⟳.</div></div>

@@ -77,7 +77,40 @@ signing details.
 
 ## 0.1.0 — 2026-06-24
 
-- Initial macOS desktop build: a **Tauri** shell wrapping the Playground tool with a
-  bundled **Python sidecar** (PyInstaller), opening straight into the tool.
-- Tauri **auto-updater** wired to the GitHub release manifest.
-- ⚠️ Unsigned — required a Gatekeeper workaround to open. Fixed in 0.2.0.
+**First release — meet App Preview.** A local tool to preview, check, and polish your
+**App Store** and **Google Play** listings *before* you ship — see your new version
+exactly as users will, side by side with what's live today.
+
+### 🚀 Main features
+
+- **Load live listings from the stores** — pull screenshots + metadata straight from
+  **App Store Connect** and **Google Play** with your own API keys, into the *Current*
+  variant (⟳ **Sync**). No copy-pasting from the store consoles.
+- **Preview your new version** — see exactly how your **New** listing looks on the App
+  Store and Google Play before uploading: title, subtitle, description, and screenshots
+  — **per locale**.
+- **Review Diff (Current → New)** — a side-by-side diff of every change: text/metadata
+  field-by-field, and screenshots slot-by-slot with a fullscreen lightbox. Know exactly
+  what changed before you submit.
+- **First-release checklist** — a built-in gate covering everything a brand-new store
+  submission needs: screenshots for each required device size, metadata for every
+  locale, icon / feature graphic, and store-policy items.
+- **Store SEO audit (ASO)** — flags title / subtitle / keyword lengths against each
+  store's limits, highlights empty or over-long fields, and surfaces discoverability
+  tips — per locale, for both stores.
+- **Test keys** — verify your App Store Connect and Google Play credentials in one click
+  (builds a JWT and looks up the app; opens & deletes a throwaway Play edit) — **without
+  saving** anything.
+- **Import / Export** — move configs as JSON, or as a self-contained `.env` that embeds
+  the `.p8` and service-account JSON as single-line base64.
+- **Multi-language** — the tool and these docs ship in English, Tiếng Việt, 한국어,
+  العربية, and 日本語.
+- **Runs locally** — everything stays on your machine; your API keys never leave it.
+
+### 🖥️ Packaging
+
+- Ships as a native **macOS desktop app**: a **Tauri** shell wrapping the tool with a
+  bundled **Python sidecar** (PyInstaller), opening straight into the Playground.
+- **Auto-update** wired to the GitHub release manifest.
+- ⚠️ This build was **unsigned** — it needed a Gatekeeper workaround to open.
+  Fixed in [0.2.0](#020--2026-06-25).

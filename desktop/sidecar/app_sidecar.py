@@ -24,10 +24,19 @@ def resource_root():
 
 def seed(res, data):
     # Desktop app bundles ONLY the Playground tool (not the landing page or docs),
-    # so serve.py serves the tool directly at "/". Seed just the tool's files.
+    # so serve.py serves the tool directly at "/".
+    #
+    # App-owned files (the UI + bundled demo template) are ALWAYS refreshed from
+    # the bundle, so an app update actually ships the new UI (otherwise a stale
+    # copy from a previous version keeps being served). User-owned files (the
+    # editable "New" variant + synced "Current") are seeded once and then left
+    # alone so edits/Sync survive across launches.
     os.makedirs(data, exist_ok=True)
-    for name in ("index.html",
-                 "listing.json", "listing-current.json", "listing-template.json"):
+    for name in ("index.html", "listing-template.json"):          # app files — overwrite
+        src = os.path.join(res, name)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(data, name))
+    for name in ("listing.json", "listing-current.json"):         # user files — seed once
         src, dst = os.path.join(res, name), os.path.join(data, name)
         if os.path.exists(src) and not os.path.exists(dst):
             shutil.copy2(src, dst)

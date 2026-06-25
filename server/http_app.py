@@ -1,0 +1,192 @@
+"""The HTTP server: static routing for the umbrella site + the /api/* endpoints.
+
+Binds localhost only — /api/env and /api/sync expose store credentials, and the
+adb/WDA/preview endpoints shell out / read local files, so this must never be
+served on 0.0.0.0 / the LAN.
+"""
+import os, json, http.server, urllib.parse
+from . import context
+from . import stores, project, android, ios, preview
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kw):
+        # context.root() is read per-request so an /api/open folder switch is live.
+        super().__init__(*args, directory=context.root(), **kw)
+
+    def translate_path(self, path):
+        # Umbrella routing: / → landing, /docs/ → built Astro, /playground/ → the
+        # store-preview tool, everything else → the tool dir. Each mount is guarded
+        # by existence so the canonical (tool-only) deploy still serves "/" = tool.
+        p = urllib.parse.unquote(urllib.parse.urlparse(path).path)
+        if p in ("/", "") and os.path.exists(context.home_html()):
+            return context.home_html()
+        if (p == "/docs" or p.startswith("/docs/")) and os.path.isdir(context.docs_dist()):
+            rest = p[len("/docs"):].lstrip("/")
+            return os.path.join(context.docs_dist(), *rest.split("/")) if rest else context.docs_dist()
+        low = p.lower()
+        if low == "/playground" or low.startswith("/playground/"):
+            rest = p[len("/playground"):].lstrip("/")
+            return os.path.join(context.root(), *rest.split("/")) if rest else context.root()
+        return super().translate_path(path)
+
+    # ---- response helpers ----
+    def _json(self, code, obj):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _bin(self, code, body, ctype):
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _query(self, key, default=None):
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        return (q.get(key) or [default])[0]
+
+    def _body(self):
+        n = int(self.headers.get("Content-Length", 0))
+        return self.rfile.read(n).decode("utf-8")
+
+    def _json_body(self):
+        return json.loads(self._body() or "{}")
+
+    def _proxy_mjpeg(self, udid):
+        """Relay WDA's MJPEG screen stream (device :9100) to the browser <img>."""
+        try:
+            up = ios.ios_mjpeg_open(udid)
+        except Exception as e:
+            self._json(502, {"ok": False, "error": "MJPEG unavailable — is WDA running? " + str(e)[:120]})
+            return
+        ctype = up.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=--BoundaryString")
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.end_headers()
+        try:
+            while True:
+                chunk = up.read(8192)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+        except Exception:
+            pass   # client closed the stream (switched tabs / device); stop relaying
+
+    def do_GET(self):
+        route = self.path.split("?")[0]
+        if route == "/api/sync":
+            try: self._json(200, stores.sync())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/scan":
+            # auto-check the active root (or ?path=…) without switching
+            try: self._json(200, {"ok": True, **project.scan(self._query("path"))})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/env":
+            try: self._json(200, stores.env_dump())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        # ---- Preview panel: Android (adb) + local file preview ----
+        if route == "/api/adb/devices":
+            try: self._json(200, android.adb_devices())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/screen":
+            try: self._bin(200, android.adb_screen(self._query("serial")), "image/png")
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/preview-file":
+            try:
+                body, ctype = preview.preview_file(self._query("path", ""))
+                self._bin(200, body, ctype)
+            except FileNotFoundError as e:
+                self._json(404, {"ok": False, "error": f"not found: {e}"})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        # ---- Preview panel: iOS (WebDriverAgent) ----
+        if route == "/api/wda/devices":
+            try: self._json(200, ios.ios_devices())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/wda/status":
+            try: self._json(200, ios.ios_status(self._query("udid")))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/wda/screen":
+            try: self._bin(200, ios.ios_screen(self._query("udid")), "image/png")
+            except Exception as e: self._json(502, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/wda/mjpeg":
+            self._proxy_mjpeg(self._query("udid"))
+            return
+        return super().do_GET()
+
+    def do_POST(self):
+        route = self.path.split("?")[0]
+        if route == "/api/open":
+            # Switch the active project folder; body = {"path": "..."}.
+            try: self._json(200, project.open_folder(self._json_body().get("path", "")))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/apply-template":
+            try: self._json(200, project.apply_template())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/input":
+            try: self._json(200, android.adb_input(self._json_body()))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/scrcpy":
+            try: self._json(200, android.adb_scrcpy(self._json_body().get("serial") or None))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/wda/input":
+            try: self._json(200, ios.ios_input(self._json_body()))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/wda/launch":
+            try: self._json(200, ios.ios_launch(self._json_body().get("udid") or None))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/test":
+            # Verify the credentials in the posted .env text WITHOUT saving them.
+            try: self._json(200, stores.test_creds(self._body()))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/env":
+            # Save an imported .env to local — first-time only (won't clobber an
+            # existing .env unless ?force=1). Localhost only.
+            try:
+                body = self._body()
+                force = "force=1" in (self.path.split("?", 1)[1] if "?" in self.path else "")
+                dest = os.path.join(context.root(), ".env")
+                existed = os.path.exists(dest)
+                if existed and not force:
+                    self._json(200, {"ok": True, "saved": False, "existed": True, "path": dest})
+                else:
+                    with open(dest, "w", encoding="utf-8") as f: f.write(body)
+                    self._json(200, {"ok": True, "saved": True, "existed": existed, "path": dest})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        self.send_response(404); self.end_headers()
+
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+
+def run():
+    # PORT=0 lets the OS pick a free port (used by the desktop sidecar, which reads
+    # the actual port from stdout).
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", context.PORT), Handler)
+    actual = httpd.server_address[1]
+    print(f"READY http://127.0.0.1:{actual}/", flush=True)   # parsed by the Tauri shell
+    print(f"→ store-preview server (/api/sync, /api/env) on http://localhost:{actual}/")
+    httpd.serve_forever()

@@ -18,7 +18,9 @@ echo "→ target triple: $TRIPLE"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 
 # 1) Stage the Playground tool + server (no landing page, no docs).
+#    serve.py is a thin entry; the real backend is the `server/` package.
 cp "$ROOT/serve.py" "$ROOT/index.html" "$STAGE/"
+cp -R "$ROOT/server" "$STAGE/server"
 cp "$ROOT/listing.json" "$ROOT/listing-current.json" "$ROOT/listing-template.json" "$STAGE/"
 cp -R "$ROOT/assets" "$STAGE/assets"
 
@@ -36,6 +38,7 @@ cp -R "$ROOT/assets" "$STAGE/assets"
   --collect-all googleapiclient \
   --collect-all google_auth_httplib2 \
   --collect-submodules google \
+  --collect-submodules server \
   --hidden-import jwt \
   --hidden-import cryptography \
   --distpath "$DESKTOP/.pyi-dist" --workpath "$DESKTOP/.pyi-work" --specpath "$DESKTOP/.pyi-spec" \

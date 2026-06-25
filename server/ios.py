@@ -1,0 +1,269 @@
+"""iOS (real iPhone/iPad) — control via WebDriverAgent (WDA) over a USB tunnel.
+
+iOS has no adb-equivalent: WDA is the standard input-injection agent. We forward
+WDA's HTTP (8100) + MJPEG (9100) ports off-device with `iproxy` (libimobiledevice)
+and translate gestures to WDA's HTTP API. Requires WDA already RUNNING on the
+device (Xcode or go-ios launch). NOTE: WDA gesture coords are logical POINTS
+(window/size), not screenshot pixels — the frontend maps clicks via the points
+size reported by status().
+"""
+import os, re, json, glob, time, base64, shutil, tempfile, subprocess, urllib.request
+from .util import find_bin, have, run
+
+IPROXY = find_bin("iproxy", "IPROXY_BIN")
+IDEVICE_ID = find_bin("idevice_id", "IDEVICE_ID_BIN")
+IDEVICEINFO = find_bin("ideviceinfo", "IDEVICEINFO_BIN")
+GO_IOS = find_bin("ios", "GO_IOS_BIN")     # danielpaulus/go-ios (device list / fallback)
+XCODEBUILD = shutil.which("xcodebuild") or "/usr/bin/xcodebuild"
+_RUNWDA = {"udid": None, "proc": None}     # the WDA runner (xcodebuild) we started
+_RUNWDA_LOG = os.path.join(tempfile.gettempdir(), "sp-runwda.log")
+
+
+def _wda_project():
+    """Locate a WebDriverAgent.xcodeproj — Appium's xcuitest driver bundles one."""
+    p = os.environ.get("WDA_PROJECT")
+    if p and os.path.exists(p):
+        return p
+    home = os.path.expanduser("~")
+    for pat in (home + "/.appium/node_modules/**/appium-webdriveragent/WebDriverAgent.xcodeproj",
+                home + "/**/appium-webdriveragent/WebDriverAgent.xcodeproj"):
+        hits = glob.glob(pat, recursive=True)
+        if hits:
+            return hits[0]
+    return ""
+
+
+def _wda_team(udid):
+    """Signing team: $WDA_TEAM_ID, else auto-detected from the installed WDA app."""
+    if os.environ.get("WDA_TEAM_ID"):
+        return os.environ["WDA_TEAM_ID"]
+    if _go_ok():
+        try:
+            out, _, _ = run([GO_IOS, "apps", "--udid=" + udid], timeout=20)
+            m = re.search(r'"application-identifier":"([A-Z0-9]+)\.com\.facebook\.WebDriverAgentRunner', out)
+            if m:
+                return m.group(1)
+        except Exception:
+            pass
+    return ""
+
+
+def _wda_ready():
+    try:
+        return bool(_wda("GET", "/status", timeout=3).get("value", {}).get("ready"))
+    except Exception:
+        return False
+
+
+def _runwda_err():
+    """Last meaningful error line from the WDA runner log (xcodebuild or go-ios)."""
+    try:
+        lines = [l for l in open(_RUNWDA_LOG, encoding="utf-8", errors="replace").read().splitlines() if l.strip()]
+    except Exception:
+        return ""
+    for l in reversed(lines):
+        low = l.lower()
+        if '"level":"error"' in low or "error:" in low or "failed" in low or "no profiles" in low:
+            try:
+                return json.loads(l).get("error", l)[:240]
+            except Exception:
+                return l[:240]
+    return lines[-1][:240] if lines else ""
+WDA_HTTP_LOCAL, WDA_MJPEG_LOCAL = 8100, 9100
+WDA_BASE = "http://127.0.0.1:%d" % WDA_HTTP_LOCAL
+WDA_MJPEG = "http://127.0.0.1:%d" % WDA_MJPEG_LOCAL
+_IPROXY = {"udid": None, "proc": None}    # one active USB tunnel at a time
+_WDA_SID = {}                             # udid -> cached WDA sessionId
+WDA_BUTTONS = {"home": "home", "volup": "volumeUp", "voldown": "volumeDown"}
+
+
+def _ios_list():
+    if not have(IDEVICE_ID):
+        return []
+    out, _, _ = run([IDEVICE_ID, "-l"], timeout=10)
+    return [u.strip() for u in out.splitlines() if u.strip()]
+
+
+def _ios_info(udid, key):
+    if not udid or not have(IDEVICEINFO):
+        return ""
+    out, _, rc = run([IDEVICEINFO, "-u", udid, "-k", key], timeout=8)
+    return out.strip() if rc == 0 else ""
+
+
+def _ios_default(udid):
+    """Resolve to the given udid, or fall back to the first connected device."""
+    return udid or (_ios_list() or [None])[0]
+
+
+def _go_ok():
+    return have(GO_IOS)
+
+
+def _tunnel_running():
+    """True if a go-ios RemoteXPC tunnel (iOS 17+) is already up."""
+    if not _go_ok():
+        return False
+    try:
+        out, _, rc = run([GO_IOS, "tunnel", "ls"], timeout=8)
+        out = out.strip()
+        return rc == 0 and out not in ("", "[]", "null")
+    except Exception:
+        return False
+
+
+def ios_devices():
+    return {"ok": True, "iproxy": have(IPROXY), "goios": _go_ok(), "tunnel": _tunnel_running(),
+            "devices": [{"udid": u, "name": _ios_info(u, "DeviceName") or u,
+                         "ios": _ios_info(u, "ProductVersion")} for u in _ios_list()]}
+
+
+def ios_launch(udid):
+    """One-click WebDriverAgent launcher via `xcodebuild test` (Apple's own path —
+    works on iOS 18 where go-ios `runwda` can't, and needs NO sudo tunnel).
+    Returns immediately; the frontend polls /api/wda/status until it's up. First
+    build can take 1–3 min, subsequent launches ~15s (DerivedData is cached)."""
+    udid = _ios_default(udid)
+    if not udid:
+        return {"ok": False, "error": "no device connected"}
+    # already up (e.g. launched from Xcode / a previous click)?
+    _ios_tunnel(udid)
+    if _wda_ready():
+        return {"ok": True, "running": True}
+    proj = _wda_project()
+    if not proj:
+        return {"ok": False, "error": "WebDriverAgent.xcodeproj not found",
+                "hint": "Install Appium's driver (`appium driver install xcuitest`) or set WDA_PROJECT."}
+    # (re)launch the runner if ours isn't alive
+    p = _RUNWDA["proc"]
+    if not (p and p.poll() is None):
+        team = _wda_team(udid)
+        cmd = [XCODEBUILD, "-project", proj, "-scheme", "WebDriverAgentRunner",
+               "-destination", "id=" + udid, "-allowProvisioningUpdates", "CODE_SIGNING_ALLOWED=YES"]
+        if team:
+            cmd.append("DEVELOPMENT_TEAM=" + team)
+        cmd.append("test")
+        logf = open(_RUNWDA_LOG, "wb")
+        _RUNWDA["proc"] = subprocess.Popen(cmd, stdout=logf, stderr=logf,
+                                           start_new_session=True, cwd=os.path.dirname(proj))
+        _RUNWDA["udid"] = udid
+    time.sleep(3)
+    proc = _RUNWDA["proc"]
+    if proc and proc.poll() is not None:      # died immediately → signing/build error
+        return {"ok": False, "error": "WebDriverAgent failed to launch",
+                "detail": _runwda_err(),
+                "hint": "Signing failed — set WDA_TEAM_ID, or open WebDriverAgent.xcodeproj in "
+                        "Xcode once and pick a team. Make sure the iPhone is unlocked & trusted."}
+    return {"ok": True, "running": False, "launching": True, "team": _wda_team(udid), "project": proj,
+            "hint": "Building & launching WebDriverAgent… first time ~1–3 min, then it connects."}
+
+
+def _ios_tunnel(udid):
+    """Ensure an iproxy USB tunnel (forwards 8100+9100) for `udid`; restart on change."""
+    if not have(IPROXY):
+        raise RuntimeError("iproxy not found (brew install libimobiledevice)")
+    cur = _IPROXY["proc"]
+    if _IPROXY["udid"] == udid and cur and cur.poll() is None:
+        return
+    if cur and cur.poll() is None:
+        cur.terminate()
+    cmd = [IPROXY, "%d:%d" % (WDA_HTTP_LOCAL, WDA_HTTP_LOCAL),
+           "%d:%d" % (WDA_MJPEG_LOCAL, WDA_MJPEG_LOCAL)]
+    if udid:
+        cmd += ["-u", udid]
+    _IPROXY["proc"] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _IPROXY["udid"] = udid
+    time.sleep(0.6)   # let the listeners bind before the first request
+
+
+def _wda(method, path, body=None, timeout=20):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(WDA_BASE + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8") or "{}")
+
+
+def _wda_session(udid):
+    """Return a live WDA sessionId, creating one (+ MJPEG settings) if needed."""
+    sid = _WDA_SID.get(udid)
+    if sid:
+        try:
+            if _wda("GET", "/status", timeout=5).get("sessionId"):
+                return sid
+        except Exception:
+            pass
+    res = _wda("POST", "/session", {"capabilities": {"alwaysMatch": {}, "firstMatch": [{}]}})
+    sid = res.get("sessionId") or (res.get("value") or {}).get("sessionId")
+    _WDA_SID[udid] = sid
+    try:
+        # tuned for a smooth live mirror over USB (high framerate, good quality)
+        _wda("POST", "/session/%s/appium/settings" % sid,
+             {"settings": {"mjpegServerFramerate": 30, "mjpegServerScreenshotQuality": 60,
+                           "mjpegScalingFactor": 100}})
+    except Exception:
+        pass
+    return sid
+
+
+def ios_status(udid):
+    udid = _ios_default(udid)
+    _ios_tunnel(udid)
+    try:
+        _wda("GET", "/status", timeout=5)
+    except Exception as e:
+        return {"ok": True, "running": False, "name": _ios_info(udid, "DeviceName"),
+                "ios": _ios_info(udid, "ProductVersion"),
+                "hint": "WDA not reachable on :8100 — launch WebDriverAgent on the device",
+                "detail": str(e)[:140]}
+    sid = _wda_session(udid)
+    size = {}
+    try:
+        size = _wda("GET", "/session/%s/window/size" % sid).get("value", {})
+    except Exception:
+        pass
+    return {"ok": True, "running": True, "size": size,
+            "name": _ios_info(udid, "DeviceName"), "ios": _ios_info(udid, "ProductVersion")}
+
+
+def ios_screen(udid):
+    udid = _ios_default(udid)
+    _ios_tunnel(udid)
+    b64 = _wda("GET", "/screenshot", timeout=15).get("value")
+    if not b64:
+        raise RuntimeError("no screenshot from WDA")
+    return base64.b64decode(b64)
+
+
+def ios_mjpeg_open(udid):
+    """Ensure the tunnel and open WDA's MJPEG stream; returns the urllib response
+    so the HTTP layer can relay it to the browser <img>."""
+    _ios_tunnel(_ios_default(udid))
+    return urllib.request.urlopen(WDA_MJPEG + "/", timeout=10)
+
+
+def ios_input(body):
+    udid = _ios_default(body.get("udid") or None)
+    _ios_tunnel(udid)
+    act = body.get("action")
+    if act in ("lock", "unlock"):
+        _wda("POST", "/wda/" + act, {})
+        return {"ok": True}
+    sid = _wda_session(udid)
+    if act == "tap":
+        _wda("POST", "/session/%s/wda/tap/0" % sid, {"x": float(body["x"]), "y": float(body["y"])})
+    elif act == "swipe":
+        _wda("POST", "/session/%s/wda/dragfromtoforduration" % sid,
+             {"fromX": float(body["x1"]), "fromY": float(body["y1"]),
+              "toX": float(body["x2"]), "toY": float(body["y2"]),
+              "duration": max(float(body.get("ms", 150)) / 1000.0, 0.05)})
+    elif act == "button":
+        name = WDA_BUTTONS.get(str(body.get("key", "")).lower())
+        if not name:
+            return {"ok": False, "error": "unknown button %s" % body.get("key")}
+        _wda("POST", "/session/%s/wda/pressButton" % sid, {"name": name})
+    elif act == "text":
+        _wda("POST", "/session/%s/wda/keys" % sid, {"value": list(str(body.get("text", "")))})
+    else:
+        return {"ok": False, "error": "unknown action %s" % act}
+    return {"ok": True}

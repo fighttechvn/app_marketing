@@ -453,6 +453,7 @@
   <button class="rb" data-pp="media" title="Media — open an image / video / audio file">🖼️</button>
   <button class="rb" data-pp="md" title="Markdown — render a .md file">📄</button>
   <button class="rb" data-pp="android" title="Android — mirror &amp; remote-control a device (adb / scrcpy)">📱</button>
+  <button class="rb" data-pp="iphone" title="iPhone — mirror &amp; control a real device (WebDriverAgent)">🍎</button>
   <div class="sp"></div>
   <button class="rb" id="ppClose2" title="Hide panel">✕</button>
 </div>
@@ -1421,14 +1422,14 @@ window.__openFolder = async function(path){
 
   const setActive=t=>rail.querySelectorAll('.rb[data-pp]').forEach(b=>b.classList.toggle('active',b.dataset.pp===t));
   const openPanel=()=>{ panel.classList.add('open'); document.body.classList.add('pp-open'); };
-  function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('pp-open'); setActive(null); stopAndroid(); cur=null; }
+  function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('pp-open'); setActive(null); stopAndroid(); stopIos(); cur=null; }
   function revoke(){ if(objUrl){ URL.revokeObjectURL(objUrl); objUrl=null; } }
 
   function show(tab){
     if(cur===tab){ closePanel(); return; }   // clicking the active icon toggles closed
-    stopAndroid(); revoke();
+    stopAndroid(); stopIos(); revoke();
     cur=tab; setActive(tab); openPanel();
-    ({web:renderWeb, media:renderMedia, md:renderMd, android:renderAndroid}[tab])();
+    ({web:renderWeb, media:renderMedia, md:renderMd, android:renderAndroid, iphone:renderIphone}[tab])();
   }
   rail.querySelectorAll('.rb[data-pp]').forEach(b=>b.onclick=()=>show(b.dataset.pp));
   document.getElementById('ppClose').onclick=closePanel;
@@ -1580,7 +1581,10 @@ window.__openFolder = async function(path){
   function frameUrl(){ return '/api/adb/screen?serial='+encodeURIComponent(andSerial||'')+'&t='+Date.now(); }
   function ensureImg(){
     const scr=body.querySelector('#andScr'); if(!scr) return null;
-    if(!andImg || !scr.contains(andImg)){ scr.innerHTML=''; andImg=new Image(); scr.appendChild(andImg); wireTouch(andImg); }
+    if(!andImg || !scr.contains(andImg)){ scr.innerHTML=''; andImg=new Image(); scr.appendChild(andImg);
+      wireMirror(andImg,scr,{ toXY:devXY,
+        onTap:(x,y)=>sendInput({action:'tap',x,y}),
+        onSwipe:(x1,y1,x2,y2,ms)=>sendInput({action:'swipe',x1,y1,x2,y2,ms}) }); }
     return andImg;
   }
   async function snap(){ const im=ensureImg(); if(!im) return; im.src=frameUrl(); }
@@ -1597,9 +1601,10 @@ window.__openFolder = async function(path){
   function devXY(im,e){ const r=im.getBoundingClientRect(); return {
     x:Math.round((e.clientX-r.left)/r.width*(im.naturalWidth||r.width)),
     y:Math.round((e.clientY-r.top)/r.height*(im.naturalHeight||r.height)) }; }
-  // position of a pointer event within the .scr container (for visual feedback)
-  function scrXY(e){ const scr=body.querySelector('#andScr'); if(!scr) return null;
-    const r=scr.getBoundingClientRect(); return {scr, x:e.clientX-r.left, y:e.clientY-r.top}; }
+  // ----- shared mirror touch layer (used by both Android + iPhone) -----
+  // position of a pointer event within a .scr container (for visual feedback)
+  function scrXY(scr,e){ if(!scr) return null; const r=scr.getBoundingClientRect();
+    return {scr, x:e.clientX-r.left, y:e.clientY-r.top}; }
   function fxRipple(p,end){ if(!p) return; const d=document.createElement('span');
     d.className='ripple'+(end?' end':''); d.style.left=p.x+'px'; d.style.top=p.y+'px';
     p.scr.appendChild(d); setTimeout(()=>d.remove(),600); }
@@ -1608,16 +1613,17 @@ window.__openFolder = async function(path){
     l.style.left=a.x+'px'; l.style.top=a.y+'px'; l.style.width=len+'px';
     l.style.transform='rotate('+Math.atan2(b.y-a.y,b.x-a.x)+'rad'; a.scr.appendChild(l);
     setTimeout(()=>l.remove(),650); }
-  function wireTouch(im){
+  // opts: {toXY(im,e)->{x,y} in device coords, onTap(x,y), onSwipe(x1,y1,x2,y2,ms)}
+  function wireMirror(im,scr,opts){
     let start=null, startPx=null, t0=0;
-    im.addEventListener('pointerdown',e=>{ e.preventDefault(); start=devXY(im,e); startPx=scrXY(e); t0=performance.now();
+    im.addEventListener('pointerdown',e=>{ e.preventDefault(); start=opts.toXY(im,e); startPx=scrXY(scr,e); t0=performance.now();
       fxRipple(startPx);                              // instant feedback at the touch point
-      im.setPointerCapture(e.pointerId); });
-    im.addEventListener('pointerup',e=>{ if(!start) return; const end=devXY(im,e); const endPx=scrXY(e);
+      try{ im.setPointerCapture(e.pointerId); }catch(_){} });
+    im.addEventListener('pointerup',e=>{ if(!start) return; const end=opts.toXY(im,e); const endPx=scrXY(scr,e);
       const dt=performance.now()-t0; const dist=Math.hypot(end.x-start.x,end.y-start.y);
-      if(dist<14&&dt<400) sendInput({action:'tap',x:start.x,y:start.y});
+      if(dist<14&&dt<400) opts.onTap(start.x,start.y);
       else { fxLine(startPx,endPx); fxRipple(endPx,true);   // swipe: trail line + end marker
-        sendInput({action:'swipe',x1:start.x,y1:start.y,x2:end.x,y2:end.y,ms:Math.min(Math.max(dt|0,60),800)}); }
+        opts.onSwipe(start.x,start.y,end.x,end.y,Math.min(Math.max(dt|0,60),800)); }
       start=null; startPx=null; });
   }
   async function sendInput(payload){
@@ -1631,6 +1637,97 @@ window.__openFolder = async function(path){
     try{ const d=await (await fetch('/api/adb/scrcpy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serial:andSerial})})).json();
       setSt(d.ok?(d.already?'scrcpy already open':'<b>scrcpy launched</b>'):'⚠️ '+(d.error||'failed')); }
     catch(e){ setSt('⚠️ '+e); }
+  }
+
+  // ---- iPhone (real device) via WebDriverAgent — mirror + control over USB ----
+  let iosLive=false, iosUdid=null, iosImg=null, iosGen=0, iosSize=null;
+  function stopIos(){ iosLive=false; iosGen++; const im=body.querySelector('#iosScr img');
+    if(im){ im.onerror=null; im.onload=null; im.src=''; } iosImg=null; }
+  function renderIphone(){
+    titleEl.textContent='iPhone';
+    body.innerHTML=`<div class="pp-and">
+      <div class="tools">
+        <select id="iosDev"><option>scanning…</option></select>
+        <button id="iosRefresh" title="Rescan devices">⟳</button>
+        <button id="iosLiveBtn" title="Toggle live mirror">▶ Live</button>
+        <span class="st" id="iosSt"></span>
+      </div>
+      <div class="scr" id="iosScr"><div class="nodev">Connect an iPhone &amp; launch WebDriverAgent,<br>then press ⟳.</div></div>
+      <div class="navbar">
+        <button data-act="home" title="Home">○</button>
+        <button data-act="voldown" title="Volume −">🔉</button>
+        <button data-act="volup" title="Volume +">🔊</button>
+        <button data-act="lock" title="Lock / Wake">⏻</button>
+      </div>
+      <div class="keyrow">
+        <input id="iosText" placeholder="Type text → Send to device (focus a field first)">
+        <button id="iosSend">Send</button>
+      </div></div>`;
+    body.querySelector('#iosRefresh').onclick=loadIosDevices;
+    body.querySelector('#iosLiveBtn').onclick=()=>{ iosLive?stopIos():iosStatus(); setIosLiveBtn(iosLive); };
+    body.querySelector('#iosDev').onchange=e=>{ iosUdid=e.target.value||null; stopIos(); iosStatus(); };
+    body.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{ const a=b.dataset.act;
+      iosInput(a==='lock'?{action:'lock'}:{action:'button',key:a}); });
+    const ti=body.querySelector('#iosText');
+    const send=()=>{ const t=ti.value; if(t){ iosInput({action:'text',text:t}); ti.value=''; } };
+    body.querySelector('#iosSend').onclick=send;
+    ti.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); send(); } });
+    loadIosDevices();
+  }
+  function setIosSt(s){ const el=body.querySelector('#iosSt'); if(el) el.innerHTML=s; }
+  function setIosLiveBtn(on){ body.querySelector('#iosLiveBtn')?.classList.toggle('live',!!on); }
+  function paintIosHint(msg){ const scr=body.querySelector('#iosScr'); if(scr) scr.innerHTML='<div class="nodev">'+msg+'</div>'; }
+  async function loadIosDevices(){
+    setIosSt('scanning…');
+    try{ const d=await (await fetch('/api/wda/devices')).json();
+      const sel=body.querySelector('#iosDev'); if(!sel) return;
+      if(!d.devices||!d.devices.length){ sel.innerHTML='<option value="">no device</option>';
+        setIosSt(d.iproxy?'no iPhone':'⚠️ install libimobiledevice'); paintIosHint('No iPhone detected.<br>Plug in &amp; trust the device, then ⟳.'); return; }
+      sel.innerHTML=d.devices.map(x=>`<option value="${esc(x.udid)}">${esc(x.name)}${x.ios?' · iOS '+esc(x.ios):''}</option>`).join('');
+      if(!iosUdid||!d.devices.some(x=>x.udid===iosUdid)) iosUdid=d.devices[0].udid;
+      sel.value=iosUdid; iosStatus();
+    }catch(e){ setIosSt('⚠️ '+e); }
+  }
+  async function iosStatus(){
+    if(!iosUdid){ return; }
+    setIosSt('connecting…');
+    try{ const d=await (await fetch('/api/wda/status?udid='+encodeURIComponent(iosUdid))).json();
+      if(!d.running){ setIosSt('⚠️ WDA not running');
+        paintIosHint('<b style="color:#ff9f0a">WebDriverAgent is not running.</b><br>'+
+          'Launch it on the device (Xcode ▸ WebDriverAgentRunner, or <code>go-ios</code>), then press ⟳.<br>'+
+          '<span style="opacity:.7">iOS 17+ also needs a tunnel: <code>sudo ios tunnel start</code></span>'); return; }
+      iosSize=d.size&&d.size.width?d.size:null;
+      setIosSt('<b>connected</b>'+(iosSize?' · '+iosSize.width+'×'+iosSize.height+'pt':''));
+      startIosLive();
+    }catch(e){ setIosSt('⚠️ '+e); }
+  }
+  function iosXY(im,e){ const r=im.getBoundingClientRect();
+    const w=(iosSize&&iosSize.width)||im.naturalWidth||r.width, h=(iosSize&&iosSize.height)||im.naturalHeight||r.height;
+    return { x:Math.round((e.clientX-r.left)/r.width*w), y:Math.round((e.clientY-r.top)/r.height*h) }; }
+  function ensureIosImg(){ const scr=body.querySelector('#iosScr'); if(!scr) return null;
+    if(!iosImg||!scr.contains(iosImg)){ scr.innerHTML=''; iosImg=new Image(); scr.appendChild(iosImg);
+      wireMirror(iosImg,scr,{ toXY:iosXY, onTap:(x,y)=>iosInput({action:'tap',x,y}),
+        onSwipe:(x1,y1,x2,y2,ms)=>iosInput({action:'swipe',x1,y1,x2,y2,ms}) }); }
+    return iosImg; }
+  function iosFrameUrl(){ return '/api/wda/screen?udid='+encodeURIComponent(iosUdid||'')+'&t='+Date.now(); }
+  function startIosLive(){
+    if(!iosUdid){ paintIosHint('Pick a device.'); return; }
+    iosLive=true; const gen=++iosGen; const im=ensureIosImg(); if(!im) return; setIosLiveBtn(true);
+    let fellBack=false;
+    im.onload=null;
+    im.onerror=()=>{ if(gen!==iosGen) return;
+      if(!fellBack){ fellBack=true; iosPoll(gen); }          // MJPEG failed → screenshot polling
+      else { iosLive=false; setIosSt('⚠️ stream error'); setIosLiveBtn(false); } };
+    im.src='/api/wda/mjpeg?udid='+encodeURIComponent(iosUdid)+'&t='+Date.now();   // live MJPEG
+  }
+  function iosPoll(gen){ const im=ensureIosImg(); if(!im) return;
+    im.onerror=()=>{ if(gen===iosGen){ iosLive=false; setIosSt('⚠️ WDA screen error'); setIosLiveBtn(false); } };
+    im.onload=()=>{ if(iosLive&&gen===iosGen) setTimeout(()=>{ if(iosLive&&gen===iosGen) im.src=iosFrameUrl(); },130); };
+    im.src=iosFrameUrl(); }
+  async function iosInput(payload){
+    if(!iosUdid) return; payload.udid=iosUdid;
+    try{ await fetch('/api/wda/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(!iosLive){ const im=ensureIosImg(); if(im) setTimeout(()=>{ im.src=iosFrameUrl(); },200); } }catch(_){}
   }
 
   // Esc closes the panel (unless an editor/lightbox owns Escape already)

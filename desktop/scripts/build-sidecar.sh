@@ -20,6 +20,10 @@ PY="${PYTHON:-python3}"
 EXE=""; SEP=":"
 case "$TRIPLE" in *windows*) EXE=".exe"; SEP=";";; esac
 
+# PyInstaller is a NATIVE Windows exe under git-bash, so its path args need Windows
+# paths (D:\...) not MSYS paths (/d/...). `np` converts them on Windows, no-op elsewhere.
+if [ -n "$EXE" ]; then np() { cygpath -w "$1"; }; else np() { printf '%s' "$1"; }; fi
+
 echo "→ target triple: $TRIPLE"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 
@@ -35,20 +39,20 @@ cp -R "$ROOT/assets" "$STAGE/assets"
       google-api-python-client google-auth google-auth-httplib2
 
 "$PY" -m PyInstaller --clean --noconfirm --onefile --name serve \
-  --paths "$STAGE" \
-  --add-data "$STAGE/index.html${SEP}." \
-  --add-data "$STAGE/listing.json${SEP}." \
-  --add-data "$STAGE/listing-current.json${SEP}." \
-  --add-data "$STAGE/listing-template.json${SEP}." \
-  --add-data "$STAGE/assets${SEP}assets" \
+  --paths "$(np "$STAGE")" \
+  --add-data "$(np "$STAGE/index.html")${SEP}." \
+  --add-data "$(np "$STAGE/listing.json")${SEP}." \
+  --add-data "$(np "$STAGE/listing-current.json")${SEP}." \
+  --add-data "$(np "$STAGE/listing-template.json")${SEP}." \
+  --add-data "$(np "$STAGE/assets")${SEP}assets" \
   --collect-all googleapiclient \
   --collect-all google_auth_httplib2 \
   --collect-submodules google \
   --collect-submodules server \
   --hidden-import jwt \
   --hidden-import cryptography \
-  --distpath "$DESKTOP/.pyi-dist" --workpath "$DESKTOP/.pyi-work" --specpath "$DESKTOP/.pyi-spec" \
-  "$DESKTOP/sidecar/app_sidecar.py"
+  --distpath "$(np "$DESKTOP/.pyi-dist")" --workpath "$(np "$DESKTOP/.pyi-work")" --specpath "$(np "$DESKTOP/.pyi-spec")" \
+  "$(np "$DESKTOP/sidecar/app_sidecar.py")"
 
 # 3) Place the sidecar with the target-triple suffix Tauri requires
 #    (serve-<triple> on macOS/Linux, serve-<triple>.exe on Windows).

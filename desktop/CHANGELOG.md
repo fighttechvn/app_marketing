@@ -37,6 +37,21 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
 
 ## 0.1.0 — 2026-06-24
 
-- Initial macOS desktop build: **Tauri** shell + bundled **Python `serve.py`**
-  sidecar (PyInstaller), opening straight into the Playground tool.
+**First release — App Preview.** A local tool to preview and polish your App Store and
+Google Play listings before shipping.
+
+### Main features
+- **Load live listings** from App Store Connect + Google Play via API keys (⟳ Sync).
+- **Preview the new version** (text + screenshots, per locale) before uploading.
+- **Review Diff** — Current → New, field-by-field text and slot-by-slot screenshots.
+- **First-release checklist** — a gate covering everything a new submission needs.
+- **Store SEO / ASO audit** — title/subtitle/keyword limits + tips, per locale.
+- **Test keys** — verify ASC + Google Play credentials without saving.
+- **Import / Export** — JSON config or a self-contained base64 `.env`.
+- **Multi-language** UI + docs (en, vi, ko, ar, ja); runs fully locally.
+
+### Packaging
+- macOS desktop build: **Tauri** shell + bundled **Python `serve.py`** sidecar
+  (PyInstaller), opening straight into the Playground tool.
 - Tauri **auto-updater** wired to the GitHub `latest.json` endpoint.
+- Unsigned build (Gatekeeper workaround required) — fixed in 0.2.0.

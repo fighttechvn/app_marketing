@@ -108,7 +108,9 @@ jobs:
             ${{ env.LATEST_JSON }}
           fail_on_unmatched_files: false
           body: |
-            App Preview — macOS desktop build (auto-released from main). Auto-update enabled.
+            App Preview — macOS desktop build (auto-released from main).
+            Signed with Developer ID & notarized by Apple — opens with no Gatekeeper warning.
+            Auto-update enabled (File ▸ Check for Updates…).
 
-            Not notarized by Apple → macOS may say "AppPreview is damaged". To open:
-            `xattr -dr com.apple.quarantine "/Applications/AppPreview.app"` then launch.
+            (If the Apple signing secrets are unset, the build falls back to unsigned;
+            then run `xattr -dr com.apple.quarantine "/Applications/AppPreview.app"` to open.)

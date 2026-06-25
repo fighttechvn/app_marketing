@@ -150,6 +150,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try: self._json(200, ios.ios_input(self._json_body()))
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
+        if route == "/api/wda/launch":
+            try: self._json(200, ios.ios_launch(self._json_body().get("udid") or None))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
         if route == "/api/test":
             # Verify the credentials in the posted .env text WITHOUT saving them.
             try: self._json(200, stores.test_creds(self._body()))

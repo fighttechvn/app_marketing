@@ -1657,6 +1657,7 @@ window.__openFolder = async function(path){
       <div class="tools">
         <select id="iosDev"><option>scanning…</option></select>
         <button id="iosRefresh" title="Rescan devices">⟳</button>
+        <button id="iosStart" title="Auto-launch WebDriverAgent via go-ios">▶ Start WDA</button>
         <button id="iosLiveBtn" title="Toggle live mirror">▶ Live</button>
         <button id="iosHelp" title="Setup help — how to launch WebDriverAgent">ⓘ Setup</button>
         <span class="st" id="iosSt"></span>
@@ -1673,6 +1674,7 @@ window.__openFolder = async function(path){
         <button id="iosSend">Send</button>
       </div></div>`;
     body.querySelector('#iosRefresh').onclick=loadIosDevices;
+    body.querySelector('#iosStart').onclick=iosStart;
     body.querySelector('#iosHelp').onclick=()=>{ stopIos(); paintIosSetup(); };
     body.querySelector('#iosLiveBtn').onclick=()=>{ iosLive?stopIos():iosStatus(); setIosLiveBtn(iosLive); };
     body.querySelector('#iosDev').onchange=e=>{ iosUdid=e.target.value||null; stopIos(); iosStatus(); };
@@ -1698,12 +1700,40 @@ window.__openFolder = async function(path){
       '<div class="step">2 · Start the USB tunnel — iOS 17+, needs sudo, keep it open:</div>'+cmdRow('sudo ios tunnel start')+
       '<div class="step">3 · Launch WebDriverAgent on the device:</div>'+cmdRow('ios runwda --udid='+u)+
       '<div class="foot">Then press ⟳ above. &nbsp;Alternatively run <b>WebDriverAgentRunner</b> from Xcode.</div></div>';
-    scr.querySelectorAll('.cmd-copy').forEach(b=>b.onclick=()=>{
+    wireCmdCopy(scr);
+  }
+  function wireCmdCopy(scr){ scr.querySelectorAll('.cmd-copy').forEach(b=>b.onclick=()=>{
       const t=b.dataset.cmd;
       (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>{
         const o=b.textContent; b.textContent='✓ Copied'; setTimeout(()=>{b.textContent=o;},1200);
       }).catch(()=>{ if(typeof toast==='function') toast('Copy: '+t); });
-    });
+    }); }
+  // focused one-command prompt (e.g. the sudo tunnel that a button can't run)
+  function paintIosCmd(hd, cmd, foot){
+    const scr=body.querySelector('#iosScr'); if(!scr) return;
+    scr.innerHTML='<div class="setup"><div class="hd">'+esc(hd)+'</div>'+cmdRow(cmd)+
+      '<div class="foot">'+foot+'</div></div>';
+    wireCmdCopy(scr);
+  }
+  // ▶ Start WDA — automate everything go-ios can without root; the iOS 17+ tunnel
+  // needs sudo (a button can't do that), so surface just that one command.
+  async function iosStart(){
+    if(!iosUdid){ await loadIosDevices(); if(!iosUdid){ setIosSt('⚠️ no device'); return; } }
+    setIosSt('⏳ launching WDA…');
+    try{
+      const d=await (await fetch('/api/wda/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({udid:iosUdid})})).json();
+      if(d.need){ setIosSt('⚠️ '+d.need+' missing'); paintIosSetup(); return; }
+      if(d.needsTunnel){ setIosSt('⚠️ tunnel needed (sudo)');
+        paintIosCmd('One step needs your password', d.cmd,
+          'Run it once in a terminal (keep it open), then click <b>▶ Start WDA</b> again.<br>'+
+          'This is the only step a button can’t do — iOS 17+ requires root for the USB tunnel.'); return; }
+      if(d.running){ setIosSt('<b>WDA up ✓</b>'); iosStatus(); return; }
+      if(d.error){ setIosSt('⚠️ '+d.error);
+        paintIosCmd('WebDriverAgent failed to launch', 'ios runwda --udid='+iosUdid,
+          (d.hint||'')+(d.detail?'<br><span style="opacity:.6">'+esc(d.detail)+'</span>':'')); return; }
+      setIosSt('WDA starting…'); paintIosCmd('WebDriverAgent is launching…', 'ios runwda --udid='+iosUdid,
+        d.hint||'Give it a few seconds, then press ⟳.');
+    }catch(e){ setIosSt('⚠️ '+e); }
   }
   async function loadIosDevices(){
     setIosSt('scanning…');

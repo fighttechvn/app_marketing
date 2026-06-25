@@ -41,7 +41,6 @@ for pat, rep in (
     ('="/docs',       f'="{base}/docs'),
     ('href="/"',      f'href="{base}/"'),
     ('"/screenshots/', f'"{base}/screenshots/'),
-    ('"/srs-index.html', f'"{base}/srs-index.html'),
 ):
     s = s.replace(pat, rep)
 open(f, "w", encoding="utf-8").write(s)

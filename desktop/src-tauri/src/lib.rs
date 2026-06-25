@@ -79,6 +79,43 @@ pub fn run() {
             }
             _ => {}
         })
+        // Drag-and-drop a folder onto the window → auto-detect & open the project
+        // (loads its marketing site, listing.json + .env). The webview loads an
+        // external URL so it can't read filesystem paths; Tauri captures the native
+        // OS drop here and bridges the path to the page's window.__openFolder().
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::DragDrop(drag) = event {
+                let win = match window.get_webview_window("main") {
+                    Some(w) => w,
+                    None => return,
+                };
+                match drag {
+                    tauri::DragDropEvent::Enter { .. } | tauri::DragDropEvent::Over { .. } => {
+                        let _ = win.eval("window.__dragHint&&window.__dragHint(true)");
+                    }
+                    tauri::DragDropEvent::Leave => {
+                        let _ = win.eval("window.__dragHint&&window.__dragHint(false)");
+                    }
+                    tauri::DragDropEvent::Drop { paths, .. } => {
+                        let _ = win.eval("window.__dragHint&&window.__dragHint(false)");
+                        if let Some(p) = paths.first() {
+                            // Forgiving: dropping a file (e.g. listing.json) opens its folder.
+                            let dir = if p.is_dir() {
+                                p.clone()
+                            } else {
+                                p.parent().map(|x| x.to_path_buf()).unwrap_or_else(|| p.clone())
+                            };
+                            let s = dir.to_string_lossy().to_string();
+                            let _ = win.eval(&format!(
+                                "window.__openFolder&&window.__openFolder({:?}).catch(function(e){{console.error(e)}})",
+                                s
+                            ));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        })
         .setup(|app| {
             // ---- Menu: AppPreview (About · Check for Updates) · File (Open Folder) · Edit ----
             // "Check for Updates…" lives in the app menu next to About — the macOS convention.

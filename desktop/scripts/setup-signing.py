@@ -60,7 +60,7 @@ def asc_jwt(key_id, issuer, p8_text):
         p8_text, algorithm="ES256", headers={"kid": key_id, "typ": "JWT"})
 
 
-def api(method, path, tok, body=None):
+def api(method, path, tok, body=None, soft=False):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(API + path, data=data, method=method,
                                  headers={"Authorization": "Bearer " + tok,
@@ -69,7 +69,10 @@ def api(method, path, tok, body=None):
         with urllib.request.urlopen(req, timeout=60) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
-        sys.exit(f"✗ ASC API {method} {path} → HTTP {e.code}\n{e.read().decode('utf-8','replace')[:600]}")
+        detail = e.read().decode("utf-8", "replace")
+        if soft:
+            return {"_error": e.code, "_detail": detail}
+        sys.exit(f"✗ ASC API {method} {path} → HTTP {e.code}\n{detail[:600]}")
 
 
 def main():
@@ -97,19 +100,30 @@ def main():
     tok = asc_jwt(key_id, issuer, p8_text)
     print("→ requesting Developer ID Application certificate from App Store Connect")
     cert = None
+    last = ""
     for ctype in ("DEVELOPER_ID_APPLICATION_G2", "DEVELOPER_ID_APPLICATION"):
-        try:
-            resp = api("POST", "/v1/certificates", tok, {
-                "data": {"type": "certificates",
-                         "attributes": {"certificateType": ctype, "csrContent": csr_pem}}})
+        resp = api("POST", "/v1/certificates", tok, soft=True, body={
+            "data": {"type": "certificates",
+                     "attributes": {"certificateType": ctype, "csrContent": csr_pem}}})
+        if "_error" not in resp:
             cert = resp["data"]["attributes"]
             print(f"  created ({ctype})")
             break
-        except SystemExit as e:
-            print(f"  {ctype} not available, trying next…")
-            tok = asc_jwt(key_id, issuer, p8_text)
+        last = resp["_detail"]
+        if "Account Holder" in last:
+            sys.exit(
+                "✗ Apple rejected the request (HTTP 403): creating a Developer ID\n"
+                "  Application certificate can only be done by the ACCOUNT HOLDER.\n"
+                "  This API key is Admin/App Manager. Options:\n"
+                "   1) Use an API key created by the Account Holder, then rerun this.\n"
+                "   2) As the Account Holder, create the cert once (Xcode ▸ Settings ▸\n"
+                "      Accounts ▸ Manage Certificates ▸ + Developer ID Application), export\n"
+                "      it as .p12 into desktop/.signing/DeveloperID.p12, set\n"
+                "      APPLE_CERTIFICATE_PATH/PASSWORD in signing.env. Notarization still\n"
+                "      uses this API key — no Account Holder needed for that.")
+        print(f"  {ctype}: HTTP {resp['_error']}, trying next…")
     if not cert:
-        sys.exit("✗ could not create a Developer ID certificate (check API key role / cert limit)")
+        sys.exit(f"✗ could not create a Developer ID certificate.\n{last[:500]}")
 
     cer = os.path.join(SIGN, "DeveloperID.cer")
     pem = os.path.join(SIGN, "DeveloperID.pem")

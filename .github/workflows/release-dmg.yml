@@ -1,8 +1,8 @@
-name: Build macOS DMG
+name: Build desktop installers (macOS + Windows)
 
-# Builds the App Preview desktop app (.dmg) on a macOS runner.
-# - On a tag push (desktop-v* / v*): attaches the .dmg to that tag's Release.
-# - On manual run: uploads the .dmg as a workflow artifact.
+# Builds the App Preview desktop app on macOS (.dmg) and Windows (.exe NSIS).
+# - On a tag push (desktop-v* / v*): attaches the installers to that tag's Release.
+# - On manual run: uploads each installer as a workflow artifact (for testing).
 
 on:
   push:
@@ -104,3 +104,53 @@ jobs:
 
             (If the Apple signing secrets are unset, the build falls back to unsigned;
             then run `xattr -dr com.apple.quarantine "/Applications/AppPreview.app"` to open.)
+
+  windows:
+    runs-on: windows-latest          # x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Tauri CLI deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: App icons (from committed icon-source.png)
+        working-directory: desktop
+        run: npx --yes @tauri-apps/cli icon src-tauri/icon-source.png
+
+      - name: Build Python sidecar (PyInstaller → serve-*.exe)
+        working-directory: desktop
+        shell: bash
+        env:
+          PYTHON: python
+        run: bash scripts/build-sidecar.sh
+
+      - name: Build Windows installer (.exe NSIS)
+        working-directory: desktop
+        # Updater signing (signs the NSIS bundle → .sig for auto-update). Unsigned
+        # installer otherwise (no Authenticode cert yet → SmartScreen may warn once).
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx --yes @tauri-apps/cli build --bundles nsis
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-preview-windows-setup
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+
+      - name: Attach to Release (tag only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          fail_on_unmatched_files: false

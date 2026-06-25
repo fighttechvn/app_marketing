@@ -14,6 +14,12 @@ TRIPLE="$(rustc -vV | awk '/host/{print $2}')"
 STAGE="$DESKTOP/.sidecar-build"
 PY="${PYTHON:-python3}"
 
+# Cross-platform bits: PyInstaller appends .exe on Windows and uses ';' (not ':')
+# as the --add-data src/dest separator there; Tauri wants the sidecar named
+# serve-<triple>.exe on Windows.
+EXE=""; SEP=":"
+case "$TRIPLE" in *windows*) EXE=".exe"; SEP=";";; esac
+
 echo "→ target triple: $TRIPLE"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 
@@ -30,11 +36,11 @@ cp -R "$ROOT/assets" "$STAGE/assets"
 
 "$PY" -m PyInstaller --clean --noconfirm --onefile --name serve \
   --paths "$STAGE" \
-  --add-data "$STAGE/index.html:." \
-  --add-data "$STAGE/listing.json:." \
-  --add-data "$STAGE/listing-current.json:." \
-  --add-data "$STAGE/listing-template.json:." \
-  --add-data "$STAGE/assets:assets" \
+  --add-data "$STAGE/index.html${SEP}." \
+  --add-data "$STAGE/listing.json${SEP}." \
+  --add-data "$STAGE/listing-current.json${SEP}." \
+  --add-data "$STAGE/listing-template.json${SEP}." \
+  --add-data "$STAGE/assets${SEP}assets" \
   --collect-all googleapiclient \
   --collect-all google_auth_httplib2 \
   --collect-submodules google \
@@ -44,8 +50,9 @@ cp -R "$ROOT/assets" "$STAGE/assets"
   --distpath "$DESKTOP/.pyi-dist" --workpath "$DESKTOP/.pyi-work" --specpath "$DESKTOP/.pyi-spec" \
   "$DESKTOP/sidecar/app_sidecar.py"
 
-# 3) Place the sidecar with the target-triple suffix Tauri requires.
+# 3) Place the sidecar with the target-triple suffix Tauri requires
+#    (serve-<triple> on macOS/Linux, serve-<triple>.exe on Windows).
 mkdir -p "$DESKTOP/src-tauri/binaries"
-cp "$DESKTOP/.pyi-dist/serve" "$DESKTOP/src-tauri/binaries/serve-$TRIPLE"
-chmod +x "$DESKTOP/src-tauri/binaries/serve-$TRIPLE"
-echo "✓ sidecar → src-tauri/binaries/serve-$TRIPLE"
+cp "$DESKTOP/.pyi-dist/serve$EXE" "$DESKTOP/src-tauri/binaries/serve-$TRIPLE$EXE"
+chmod +x "$DESKTOP/src-tauri/binaries/serve-$TRIPLE$EXE" 2>/dev/null || true
+echo "✓ sidecar → src-tauri/binaries/serve-$TRIPLE$EXE"

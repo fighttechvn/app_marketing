@@ -45,13 +45,28 @@ else
 fi
 NOTES="${NOTES:-$PRODUCT $VERSION — macOS desktop build (Tauri + Python sidecar). $SIGN_NOTE}"
 
-# 3) Create the release if missing, else upload (clobber the same asset name).
+# 2b) Updater artifacts (auto-update): build latest.json from the signed .app.tar.gz
+#     so the updater endpoint (releases/latest/download/latest.json) stays valid.
+ASSETS=("$DMG")
+B=src-tauri/target/release/bundle/macos
+SIG_FILE="$B/AppPreview.app.tar.gz.sig"
+if [ -f "$SIG_FILE" ] && [ -f "$B/AppPreview.app.tar.gz" ]; then
+  URL="https://github.com/$REPO/releases/download/$TAG/AppPreview.app.tar.gz"
+  python3 -c 'import json,sys; v,p,u,s,o=sys.argv[1:6]; open(o,"w").write(json.dumps({"version":v,"pub_date":p,"platforms":{"darwin-aarch64":{"signature":s,"url":u}}},indent=2))' \
+    "$VERSION" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$URL" "$(cat "$SIG_FILE")" "$B/latest.json"
+  ASSETS+=("$B/AppPreview.app.tar.gz" "$SIG_FILE" "$B/latest.json")
+  echo "→ updater: latest.json + .app.tar.gz(.sig)"
+else
+  echo "⚠️  no updater .app.tar.gz(.sig) — auto-update manifest skipped (set TAURI_SIGNING_PRIVATE_KEY / .signing/updater.key)"
+fi
+
+# 3) Create the release if missing, else upload (clobber the same asset names).
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-  echo "→ release $TAG exists — uploading asset"
-  gh release upload "$TAG" "$DMG" --repo "$REPO" --clobber
+  echo "→ release $TAG exists — uploading assets"
+  gh release upload "$TAG" "${ASSETS[@]}" --repo "$REPO" --clobber
 else
   echo "→ creating release $TAG"
-  gh release create "$TAG" "$DMG" --repo "$REPO" --title "$PRODUCT $VERSION" --notes "$NOTES"
+  gh release create "$TAG" "${ASSETS[@]}" --repo "$REPO" --title "$PRODUCT $VERSION" --notes "$NOTES"
 fi
 
 echo "✓ published: https://github.com/$REPO/releases/tag/$TAG"

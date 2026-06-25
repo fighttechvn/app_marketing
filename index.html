@@ -186,6 +186,14 @@
     animation:ppFade .6s ease-out forwards}
   @keyframes ppFade{0%{opacity:.9}100%{opacity:0}}
   .pp-and .scr .nodev{color:#9a9aa0;text-align:center;font-size:14px;line-height:1.7;padding:20px}
+  .pp-and .scr .setup{text-align:left;max-width:340px;margin:0 auto;padding:18px 16px;color:#c7c7cc}
+  .pp-and .scr .setup .hd{font-size:14px;font-weight:600;color:#ff9f0a;margin-bottom:4px}
+  .pp-and .scr .setup .step{font-size:12.5px;color:#9a9aa0;margin:11px 0 4px}
+  .pp-and .scr .setup .cmd{display:flex;align-items:center;gap:6px;background:#1c1c1e;border:1px solid #2a2a2c;border-radius:7px;padding:5px 6px 5px 9px}
+  .pp-and .scr .setup .cmd code{flex:1;color:#5fd08a;font-size:12px;overflow-x:auto;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}
+  .pp-and .scr .setup .cmd button{flex:none;background:#2a2a2c;border:0;color:#eee;border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer}
+  .pp-and .scr .setup .cmd button:hover{background:#3a3a3d}
+  .pp-and .scr .setup .foot{font-size:12px;color:#7d7d82;margin-top:14px;line-height:1.6}
   .pp-and .navbar{display:flex;justify-content:center;gap:26px;padding:10px 0;background:#0f0f10;border-top:1px solid #2a2a2c}
   .pp-and .navbar button{width:40px;height:34px;border:0;background:transparent;color:#cfcfd2;font-size:18px;
     border-radius:8px;cursor:pointer}
@@ -1677,6 +1685,24 @@ window.__openFolder = async function(path){
   function setIosSt(s){ const el=body.querySelector('#iosSt'); if(el) el.innerHTML=s; }
   function setIosLiveBtn(on){ body.querySelector('#iosLiveBtn')?.classList.toggle('live',!!on); }
   function paintIosHint(msg){ const scr=body.querySelector('#iosScr'); if(scr) scr.innerHTML='<div class="nodev">'+msg+'</div>'; }
+  // copy-paste setup block shown when WDA isn't reachable (commands users can run)
+  function cmdRow(c){ return '<div class="cmd"><code>'+esc(c)+'</code><button class="cmd-copy" data-cmd="'+esc(c)+'">📋 Copy</button></div>'; }
+  function paintIosSetup(){
+    const scr=body.querySelector('#iosScr'); if(!scr) return;
+    const u=iosUdid||'<UDID>';
+    scr.innerHTML='<div class="setup">'+
+      '<div class="hd">WebDriverAgent isn’t reachable</div>'+
+      '<div class="step">1 · Install go-ios (gives the <code>ios</code> CLI):</div>'+cmdRow('npm install -g go-ios')+
+      '<div class="step">2 · Start the USB tunnel — iOS 17+, needs sudo, keep it open:</div>'+cmdRow('sudo ios tunnel start')+
+      '<div class="step">3 · Launch WebDriverAgent on the device:</div>'+cmdRow('ios runwda --udid='+u)+
+      '<div class="foot">Then press ⟳ above. &nbsp;Alternatively run <b>WebDriverAgentRunner</b> from Xcode.</div></div>';
+    scr.querySelectorAll('.cmd-copy').forEach(b=>b.onclick=()=>{
+      const t=b.dataset.cmd;
+      (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>{
+        const o=b.textContent; b.textContent='✓ Copied'; setTimeout(()=>{b.textContent=o;},1200);
+      }).catch(()=>{ if(typeof toast==='function') toast('Copy: '+t); });
+    });
+  }
   async function loadIosDevices(){
     setIosSt('scanning…');
     try{ const d=await (await fetch('/api/wda/devices')).json();
@@ -1692,10 +1718,7 @@ window.__openFolder = async function(path){
     if(!iosUdid){ return; }
     setIosSt('connecting…');
     try{ const d=await (await fetch('/api/wda/status?udid='+encodeURIComponent(iosUdid))).json();
-      if(!d.running){ setIosSt('⚠️ WDA not running');
-        paintIosHint('<b style="color:#ff9f0a">WebDriverAgent is not running.</b><br>'+
-          'Launch it on the device (Xcode ▸ WebDriverAgentRunner, or <code>go-ios</code>), then press ⟳.<br>'+
-          '<span style="opacity:.7">iOS 17+ also needs a tunnel: <code>sudo ios tunnel start</code></span>'); return; }
+      if(!d.running){ setIosSt('⚠️ WDA not running'); paintIosSetup(); return; }
       iosSize=d.size&&d.size.width?d.size:null;
       setIosSt('<b>connected</b>'+(iosSize?' · '+iosSize.width+'×'+iosSize.height+'pt':''));
       startIosLive();

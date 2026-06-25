@@ -275,6 +275,7 @@
     text-align:center;font-size:16px;font-weight:700;color:var(--ink)}
   .drop-overlay .box .big{font-size:42px;margin-bottom:10px}
   .drop-overlay .box small{display:block;color:var(--muted);font-weight:500;margin-top:10px;font-size:13px;max-width:340px}
+  .drop-overlay.folder{background:rgba(11,123,255,.16);border-color:var(--apple-blue)}
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:210;background:var(--ink);color:#fff;
     padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.28);
     opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:80vw}
@@ -402,7 +403,7 @@
     <button data-variant="new" class="active">New ⬆</button>
     <button data-variant="current">Current</button>
   </div>
-  <button class="toggle" id="openDirBtn" title="Open a project folder — auto-check its .env + assets and load it (calls /api/open)">📁 Open folder</button>
+  <button class="toggle" id="openDirBtn" title="Open a project folder — auto-check its .env + assets and load it (calls /api/open). Desktop: File ▸ Open or drag a folder onto the window.">📁 Open folder</button>
   <button class="toggle hidden" id="tryTplBtn" title="Fill the New variant with the bundled demo template (copies assets/template → assets/new)">✨ Try template</button>
   <button class="toggle" id="syncBtn" title="Pull the live listing from App Store + Google Play into the Current tab (calls /api/sync)">⟳ Sync</button>
   <button class="toggle" id="submitBtn" title="Preview the diff between Current (live on store) and New (pending) before submitting">Review Diff</button>
@@ -480,6 +481,10 @@
     <small>Auto-sorted by name &amp; aspect ratio into iPhone · iPad · phone · tablet · app icon · feature graphic</small></div>
   <div class="box msg-lock"><div class="big">🔒</div>Current is locked
     <small>This is the live store listing (read-only). Switch to <b>New</b> to update screenshots.</small></div>
+</div>
+<div class="drop-overlay folder" id="folderDropOverlay">
+  <div class="box"><div class="big">📂</div>Drop a project folder to open
+    <small>Loads its marketing site, <b>listing.json</b> &amp; <b>.env</b> — auto-checks assets &amp; store credentials (desktop app)</small></div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -1267,6 +1272,13 @@ window.__openFolder = async function(path){
     +` (ASC ${c.appstore?'✓':'✗'}, Play ${c.googleplay?'✓':'✗'})`
     +` · assets new/current/template ${a.new||0}/${a.current||0}/${a.template||0}`);
   return j;
+};
+// Desktop drag-and-drop: the Tauri shell captures the OS file drop (the webview
+// loads an external URL so it can't see filesystem paths itself), shows/hides this
+// hint while dragging, and on drop calls __openFolder(path) with the dropped folder.
+window.__dragHint = function(show){
+  const el=document.getElementById('folderDropOverlay');
+  if(el) el.classList.toggle('show', !!show);
 };
 (function(){
   const btn=document.getElementById('openDirBtn'); if(!btn) return;

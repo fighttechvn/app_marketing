@@ -1658,6 +1658,7 @@ window.__openFolder = async function(path){
         <select id="iosDev"><option>scanning…</option></select>
         <button id="iosRefresh" title="Rescan devices">⟳</button>
         <button id="iosLiveBtn" title="Toggle live mirror">▶ Live</button>
+        <button id="iosHelp" title="Setup help — how to launch WebDriverAgent">ⓘ Setup</button>
         <span class="st" id="iosSt"></span>
       </div>
       <div class="scr" id="iosScr"><div class="nodev">Connect an iPhone &amp; launch WebDriverAgent,<br>then press ⟳.</div></div>
@@ -1672,6 +1673,7 @@ window.__openFolder = async function(path){
         <button id="iosSend">Send</button>
       </div></div>`;
     body.querySelector('#iosRefresh').onclick=loadIosDevices;
+    body.querySelector('#iosHelp').onclick=()=>{ stopIos(); paintIosSetup(); };
     body.querySelector('#iosLiveBtn').onclick=()=>{ iosLive?stopIos():iosStatus(); setIosLiveBtn(iosLive); };
     body.querySelector('#iosDev').onchange=e=>{ iosUdid=e.target.value||null; stopIos(); iosStatus(); };
     body.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{ const a=b.dataset.act;

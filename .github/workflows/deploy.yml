@@ -14,6 +14,8 @@ on:
       - 'assets/**'
       - 'screenshots/**'
       - 'docs/**'
+      - 'resources/**'
+      - 'srs-index.html'
       - 'scripts/build-pages.sh'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:

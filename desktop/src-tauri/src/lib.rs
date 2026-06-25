@@ -79,6 +79,43 @@ pub fn run() {
             }
             _ => {}
         })
+        // Drag-and-drop a folder onto the window → auto-detect & open the project
+        // (loads its marketing site, listing.json + .env). The webview loads an
+        // external URL so it can't read filesystem paths; Tauri captures the native
+        // OS drop here and bridges the path to the page's window.__openFolder().
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::DragDrop(drag) = event {
+                let win = match window.get_webview_window("main") {
+                    Some(w) => w,
+                    None => return,
+                };
+                match drag {
+                    tauri::DragDropEvent::Enter { .. } | tauri::DragDropEvent::Over { .. } => {
+                        let _ = win.eval("window.__dragHint&&window.__dragHint(true)");
+                    }
+                    tauri::DragDropEvent::Leave => {
+                        let _ = win.eval("window.__dragHint&&window.__dragHint(false)");
+                    }
+                    tauri::DragDropEvent::Drop { paths, .. } => {
+                        let _ = win.eval("window.__dragHint&&window.__dragHint(false)");
+                        if let Some(p) = paths.first() {
+                            // Forgiving: dropping a file (e.g. listing.json) opens its folder.
+                            let dir = if p.is_dir() {
+                                p.clone()
+                            } else {
+                                p.parent().map(|x| x.to_path_buf()).unwrap_or_else(|| p.clone())
+                            };
+                            let s = dir.to_string_lossy().to_string();
+                            let _ = win.eval(&format!(
+                                "window.__openFolder&&window.__openFolder({:?}).catch(function(e){{console.error(e)}})",
+                                s
+                            ));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        })
         .setup(|app| {
             // ---- Menu: AppPreview (About · Check for Updates) · File (Open Folder) · Edit ----
             // "Check for Updates…" lives in the app menu next to About — the macOS convention.
@@ -116,7 +153,9 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).ok();
             let data_dir = data_dir.to_string_lossy().to_string();
 
-            let (mut rx, _child) = app
+            // `child` is MOVED into the long-lived task below (not dropped at the end of
+            // setup) so the sidecar lives for the whole app session.
+            let (mut rx, child) = app
                 .shell()
                 .sidecar("serve")
                 .expect("sidecar `serve` not found")
@@ -125,27 +164,43 @@ pub fn run() {
                 .expect("failed to spawn sidecar");
 
             tauri::async_runtime::spawn(async move {
+                let _child = child; // keep the sidecar alive as long as this task runs
+                let mut opened = false;
+                // Keep draining stdout/stderr for the app's lifetime. If we stop reading
+                // (e.g. break after the first line), the sidecar's output pipe fills on
+                // Windows and the Python server blocks/dies — the window then loads a
+                // server that's no longer listening (ERR_CONNECTION_REFUSED).
                 while let Some(event) = rx.recv().await {
-                    if let CommandEvent::Stdout(line) = event {
-                        let text = String::from_utf8_lossy(&line);
-                        if let Some(url) = text.split_whitespace().find(|t| t.starts_with("http://")) {
-                            let url = url.trim().to_string();
-                            let h = handle.clone();
-                            let _ = handle.run_on_main_thread(move || {
-                                if h.get_webview_window("main").is_none() {
-                                    let _ = WebviewWindowBuilder::new(
-                                        &h,
-                                        "main",
-                                        WebviewUrl::External(url.parse().unwrap()),
-                                    )
-                                    .title("AppPreview")
-                                    .inner_size(1240.0, 840.0)
-                                    .min_inner_size(900.0, 640.0)
-                                    .build();
-                                }
-                            });
-                            break;
-                        }
+                    let line = match event {
+                        CommandEvent::Stdout(b) | CommandEvent::Stderr(b) => b,
+                        _ => continue,
+                    };
+                    if opened {
+                        continue; // drain and discard once the window is up
+                    }
+                    let text = String::from_utf8_lossy(&line);
+                    // Match the sidecar's READY contract precisely (`READY http://127.0.0.1:<port>/`)
+                    // so an unrelated log line containing a URL can't hijack the window.
+                    if !text.contains("READY") {
+                        continue;
+                    }
+                    if let Some(url) = text.split_whitespace().find(|t| t.starts_with("http://")) {
+                        let url = url.trim().to_string();
+                        opened = true;
+                        let h = handle.clone();
+                        let _ = handle.run_on_main_thread(move || {
+                            if h.get_webview_window("main").is_none() {
+                                let _ = WebviewWindowBuilder::new(
+                                    &h,
+                                    "main",
+                                    WebviewUrl::External(url.parse().unwrap()),
+                                )
+                                .title("AppPreview")
+                                .inner_size(1240.0, 840.0)
+                                .min_inner_size(900.0, 640.0)
+                                .build();
+                            }
+                        });
                     }
                 }
             });

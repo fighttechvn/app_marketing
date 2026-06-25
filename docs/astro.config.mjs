@@ -75,6 +75,7 @@ export default defineConfig({
         { label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] },
         { label: 'API reference (interactive)', link: '/api/' },
         { label: 'Changelog', link: '/changelog/' },
+        { label: 'SRS (Requirements)', link: '/srs/' },
       ],
     }),
   ],

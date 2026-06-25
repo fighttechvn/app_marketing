@@ -229,6 +229,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
+    def log_message(self, *args, **kwargs):
+        # Silence per-request stderr logging. In the desktop sidecar the Tauri shell
+        # stops actively draining our output once the window is open; on Windows a
+        # chatty stderr would fill the pipe buffer and stall/kill the server (→ the
+        # webview then shows ERR_CONNECTION_REFUSED). No logging = nothing to block on.
+        pass
+
 
 def run():
     # PORT=0 lets the OS pick a free port (used by the desktop sidecar, which reads

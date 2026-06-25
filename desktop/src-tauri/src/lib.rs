@@ -80,20 +80,20 @@ pub fn run() {
             _ => {}
         })
         .setup(|app| {
-            // ---- Menu: AppPreview · File (Open Folder, Check for Updates) · Edit ----
+            // ---- Menu: AppPreview (About · Check for Updates) · File (Open Folder) · Edit ----
+            // "Check for Updates…" lives in the app menu next to About — the macOS convention.
             let open_item = MenuItem::with_id(app, "open_folder", "Open Folder…", true, Some("CmdOrCtrl+O"))?;
             let upd_item = MenuItem::with_id(app, "check_update", "Check for Updates…", true, None::<&str>)?;
+            let appm = Submenu::with_items(app, "AppPreview", true, &[
+                &PredefinedMenuItem::about(app, None, None)?,
+                &upd_item,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::quit(app, None)?,
+            ])?;
             let file = Submenu::with_items(app, "File", true, &[
                 &open_item,
                 &PredefinedMenuItem::separator(app)?,
-                &upd_item,
-                &PredefinedMenuItem::separator(app)?,
                 &PredefinedMenuItem::close_window(app, None)?,
-            ])?;
-            let appm = Submenu::with_items(app, "AppPreview", true, &[
-                &PredefinedMenuItem::about(app, None, None)?,
-                &PredefinedMenuItem::separator(app)?,
-                &PredefinedMenuItem::quit(app, None)?,
             ])?;
             let edit = Submenu::with_items(app, "Edit", true, &[
                 &PredefinedMenuItem::undo(app, None)?,

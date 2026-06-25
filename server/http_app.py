@@ -6,7 +6,7 @@ served on 0.0.0.0 / the LAN.
 """
 import os, json, http.server, urllib.parse
 from . import context
-from . import stores, project, android, ios, preview
+from . import stores, project, android, ios, preview, logs
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -77,6 +77,28 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             pass   # client closed the stream (switched tabs / device); stop relaying
 
+    def _stream_logs(self, kind, ident, level):
+        """Relay a device/sim log stream to the browser as chunked text/plain.
+        The subprocess is killed when the client disconnects (tab switch/close)."""
+        try:
+            proc = logs.log_open(kind, ident, level)
+        except Exception as e:
+            self._json(400, {"ok": False, "error": str(e)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("X-Accel-Buffering", "no")   # don't let any proxy buffer the stream
+        self.end_headers()
+        try:
+            for line in iter(proc.stdout.readline, b""):
+                self.wfile.write(line)
+                self.wfile.flush()
+        except Exception:
+            pass   # client closed the stream — fall through to terminate the process
+        finally:
+            try: proc.terminate()
+            except Exception: pass
+
     def do_GET(self):
         route = self.path.split("?")[0]
         if route == "/api/sync":
@@ -99,6 +121,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         if route == "/api/adb/screen":
             try: self._bin(200, android.adb_screen(self._query("serial")), "image/png")
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/emu/avds":
+            try: self._json(200, android.emu_avds())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         if route == "/api/preview-file":
@@ -125,6 +151,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if route == "/api/wda/mjpeg":
             self._proxy_mjpeg(self._query("udid"))
             return
+        # ---- Preview panel: live logs (logcat / syslog / simctl log stream) ----
+        if route == "/api/logs/targets":
+            try: self._json(200, logs.log_targets())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/logs/stream":
+            self._stream_logs(self._query("kind"), self._query("id"), self._query("level"))
+            return
         return super().do_GET()
 
     def do_POST(self):
@@ -144,6 +178,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         if route == "/api/adb/scrcpy":
             try: self._json(200, android.adb_scrcpy(self._json_body().get("serial") or None))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/emu/launch":
+            try: self._json(200, android.emu_launch(self._json_body().get("name") or ""))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/sim/boot":
+            try: self._json(200, ios.ios_sim_boot(self._json_body().get("udid") or None))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/logs/clear":
+            try:
+                b = self._json_body()
+                self._json(200, logs.log_clear(b.get("kind"), b.get("id")))
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         if route == "/api/wda/input":

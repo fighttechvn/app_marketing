@@ -15,8 +15,63 @@ IDEVICE_ID = find_bin("idevice_id", "IDEVICE_ID_BIN")
 IDEVICEINFO = find_bin("ideviceinfo", "IDEVICEINFO_BIN")
 GO_IOS = find_bin("ios", "GO_IOS_BIN")     # danielpaulus/go-ios (device list / fallback)
 XCODEBUILD = shutil.which("xcodebuild") or "/usr/bin/xcodebuild"
+XCRUN = shutil.which("xcrun") or "/usr/bin/xcrun"   # simctl lives behind xcrun
 _RUNWDA = {"udid": None, "proc": None}     # the WDA runner (xcodebuild) we started
 _RUNWDA_LOG = os.path.join(tempfile.gettempdir(), "sp-runwda.log")
+_SIM_SET = set()                           # known simulator UDIDs (refreshed by _sim_list)
+
+
+def _have_xcrun():
+    return have(XCRUN) and have(XCODEBUILD)
+
+
+def _sim_list():
+    """Available iOS simulators via `simctl`. Returns [{udid,name,os,state}] and
+    refreshes the cached UDID set so the rest of the module can tell sim from real."""
+    if not _have_xcrun():
+        return []
+    try:
+        out, _, rc = run([XCRUN, "simctl", "list", "devices", "available", "--json"], timeout=20)
+        devices = json.loads(out or "{}").get("devices", {}) if rc == 0 else {}
+    except Exception:
+        return []
+    sims = []
+    for runtime, devs in devices.items():
+        if "iOS" not in runtime:
+            continue
+        m = re.search(r"iOS[.-](\d+)[.-](\d+)", runtime)
+        osv = (m.group(1) + "." + m.group(2)) if m else ""
+        for d in devs:
+            if not d.get("isAvailable", True):
+                continue
+            sims.append({"udid": d["udid"], "name": d["name"], "os": osv, "state": d.get("state", "")})
+    _SIM_SET.clear()
+    _SIM_SET.update(s["udid"] for s in sims)
+    return sims
+
+
+def _is_sim(udid):
+    """True if udid is an iOS simulator (its WDA listens on the host directly)."""
+    if not udid:
+        return False
+    if udid in _SIM_SET:
+        return True
+    _sim_list()           # populate the cache on a cold lookup
+    return udid in _SIM_SET
+
+
+def _sim_info(udid):
+    for s in _sim_list():
+        if s["udid"] == udid:
+            return s
+    return {}
+
+
+def _sim_boot(udid):
+    """Boot a simulator (idempotent) and bring Simulator.app to the front."""
+    run([XCRUN, "simctl", "boot", udid], timeout=40)   # rc!=0 if already booted — fine
+    subprocess.Popen(["open", "-a", "Simulator"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _wda_project():
@@ -113,9 +168,14 @@ def _tunnel_running():
 
 
 def ios_devices():
+    sims = _sim_list()
     return {"ok": True, "iproxy": have(IPROXY), "goios": _go_ok(), "tunnel": _tunnel_running(),
+            "simctl": _have_xcrun(),
             "devices": [{"udid": u, "name": _ios_info(u, "DeviceName") or u,
-                         "ios": _ios_info(u, "ProductVersion")} for u in _ios_list()]}
+                         "ios": _ios_info(u, "ProductVersion"), "kind": "device"}
+                        for u in _ios_list()],
+            "sims": [{"udid": s["udid"], "name": s["name"], "ios": s["os"],
+                      "state": s["state"], "kind": "simulator"} for s in sims]}
 
 
 def ios_launch(udid):
@@ -126,23 +186,35 @@ def ios_launch(udid):
     udid = _ios_default(udid)
     if not udid:
         return {"ok": False, "error": "no device connected"}
+    sim = _is_sim(udid)
+    if sim:
+        _sim_boot(udid)                       # boot it now → screenshot mirror works immediately
     # already up (e.g. launched from Xcode / a previous click)?
     _ios_tunnel(udid)
     if _wda_ready():
-        return {"ok": True, "running": True}
+        return {"ok": True, "running": True, "sim": sim}
     proj = _wda_project()
     if not proj:
+        if sim:                               # simulator still mirrors via simctl screenshots
+            return {"ok": True, "running": False, "sim": True, "noinput": True,
+                    "hint": "Simulator booted — live screen works. Install Appium's WDA "
+                            "(`appium driver install xcuitest`) for tap/swipe control."}
         return {"ok": False, "error": "WebDriverAgent.xcodeproj not found",
                 "hint": "Install Appium's driver (`appium driver install xcuitest`) or set WDA_PROJECT."}
     # (re)launch the runner if ours isn't alive
     p = _RUNWDA["proc"]
     if not (p and p.poll() is None):
-        team = _wda_team(udid)
-        cmd = [XCODEBUILD, "-project", proj, "-scheme", "WebDriverAgentRunner",
-               "-destination", "id=" + udid, "-allowProvisioningUpdates", "CODE_SIGNING_ALLOWED=YES"]
-        if team:
-            cmd.append("DEVELOPMENT_TEAM=" + team)
-        cmd.append("test")
+        if sim:
+            cmd = [XCODEBUILD, "-project", proj, "-scheme", "WebDriverAgentRunner",
+                   "-destination", "platform=iOS Simulator,id=" + udid,
+                   "CODE_SIGNING_ALLOWED=NO", "test"]
+        else:
+            team = _wda_team(udid)
+            cmd = [XCODEBUILD, "-project", proj, "-scheme", "WebDriverAgentRunner",
+                   "-destination", "id=" + udid, "-allowProvisioningUpdates", "CODE_SIGNING_ALLOWED=YES"]
+            if team:
+                cmd.append("DEVELOPMENT_TEAM=" + team)
+            cmd.append("test")
         logf = open(_RUNWDA_LOG, "wb")
         _RUNWDA["proc"] = subprocess.Popen(cmd, stdout=logf, stderr=logf,
                                            start_new_session=True, cwd=os.path.dirname(proj))
@@ -150,16 +222,29 @@ def ios_launch(udid):
     time.sleep(3)
     proc = _RUNWDA["proc"]
     if proc and proc.poll() is not None:      # died immediately → signing/build error
-        return {"ok": False, "error": "WebDriverAgent failed to launch",
+        return {"ok": False, "error": "WebDriverAgent failed to launch", "sim": sim,
                 "detail": _runwda_err(),
-                "hint": "Signing failed — set WDA_TEAM_ID, or open WebDriverAgent.xcodeproj in "
-                        "Xcode once and pick a team. Make sure the iPhone is unlocked & trusted."}
-    return {"ok": True, "running": False, "launching": True, "team": _wda_team(udid), "project": proj,
+                "hint": ("Build failed — open WebDriverAgent.xcodeproj in Xcode once." if sim else
+                         "Signing failed — set WDA_TEAM_ID, or open WebDriverAgent.xcodeproj in "
+                         "Xcode once and pick a team. Make sure the iPhone is unlocked & trusted.")}
+    return {"ok": True, "running": False, "launching": True, "sim": sim,
+            "team": ("" if sim else _wda_team(udid)), "project": proj,
             "hint": "Building & launching WebDriverAgent… first time ~1–3 min, then it connects."}
 
 
 def _ios_tunnel(udid):
-    """Ensure an iproxy USB tunnel (forwards 8100+9100) for `udid`; restart on change."""
+    """Ensure an iproxy USB tunnel (forwards 8100+9100) for `udid`; restart on change.
+    Simulators need no tunnel — their WDA binds 127.0.0.1:8100 on the host directly —
+    so we must also TEAR DOWN any device tunnel, or :8100 would still point at the
+    physical device's WDA and the sim would mirror the wrong screen."""
+    if _is_sim(udid):
+        cur = _IPROXY["proc"]
+        if cur and cur.poll() is None:   # transitioning away from a real device
+            cur.terminate()
+            _IPROXY["udid"] = None
+            _IPROXY["proc"] = None
+            _WDA_SID.pop(udid, None)     # drop a stale session that pointed at the device's WDA
+        return
     if not have(IPROXY):
         raise RuntimeError("iproxy not found (brew install libimobiledevice)")
     cur = _IPROXY["proc"]
@@ -208,13 +293,19 @@ def _wda_session(udid):
 
 def ios_status(udid):
     udid = _ios_default(udid)
+    sim = _is_sim(udid)
+    info = _sim_info(udid) if sim else {}
+    name = info.get("name") if sim else _ios_info(udid, "DeviceName")
+    osv = info.get("os") if sim else _ios_info(udid, "ProductVersion")
     _ios_tunnel(udid)
     try:
         _wda("GET", "/status", timeout=5)
     except Exception as e:
-        return {"ok": True, "running": False, "name": _ios_info(udid, "DeviceName"),
-                "ios": _ios_info(udid, "ProductVersion"),
-                "hint": "WDA not reachable on :8100 — launch WebDriverAgent on the device",
+        booted = (info.get("state") == "Booted") if sim else False
+        return {"ok": True, "running": False, "sim": sim, "booted": booted,
+                "name": name, "ios": osv,
+                "hint": ("Simulator — live screen works; press ▶ Start WDA for tap/swipe control." if sim
+                         else "WDA not reachable on :8100 — launch WebDriverAgent on the device"),
                 "detail": str(e)[:140]}
     sid = _wda_session(udid)
     size = {}
@@ -222,17 +313,46 @@ def ios_status(udid):
         size = _wda("GET", "/session/%s/window/size" % sid).get("value", {})
     except Exception:
         pass
-    return {"ok": True, "running": True, "size": size,
-            "name": _ios_info(udid, "DeviceName"), "ios": _ios_info(udid, "ProductVersion")}
+    return {"ok": True, "running": True, "sim": sim, "size": size, "name": name, "ios": osv}
 
 
 def ios_screen(udid):
     udid = _ios_default(udid)
     _ios_tunnel(udid)
-    b64 = _wda("GET", "/screenshot", timeout=15).get("value")
-    if not b64:
+    try:
+        b64 = _wda("GET", "/screenshot", timeout=15).get("value")
+        if b64:
+            return base64.b64decode(b64)
         raise RuntimeError("no screenshot from WDA")
-    return base64.b64decode(b64)
+    except Exception:
+        if not _is_sim(udid):
+            raise
+    # simulator without WDA → simctl still gives us the picture (no input though).
+    # Write to a temp file (newer simctl treats "-" as a literal path, not stdout).
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    try:
+        _, err, rc = run([XCRUN, "simctl", "io", udid, "screenshot", "--type=png", path], timeout=15)
+        if rc != 0:
+            raise RuntimeError(err.strip() or "simctl screenshot failed")
+        with open(path, "rb") as f:
+            data = f.read()
+    finally:
+        try: os.remove(path)
+        except OSError: pass
+    if not data:
+        raise RuntimeError("simctl screenshot empty")
+    return data
+
+
+def ios_sim_boot(udid):
+    """Boot a simulator for a screenshot-only mirror (no WDA build)."""
+    if not _have_xcrun():
+        return {"ok": False, "error": "xcrun/simctl not found — install Xcode"}
+    if not udid:
+        return {"ok": False, "error": "no simulator selected"}
+    _sim_boot(udid)
+    return {"ok": True, "booted": True}
 
 
 def ios_mjpeg_open(udid):

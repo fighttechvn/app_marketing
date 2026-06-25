@@ -136,6 +136,13 @@
     transform:translateX(calc(100% + 54px));transition:transform .26s cubic-bezier(.4,0,.2,1);
     display:flex;flex-direction:column}
   .pp-panel.open{transform:translateX(0)}
+  /* bottom-docked variant (used by Logs): full width, slides up from the bottom */
+  .pp-panel.pp-bottom{top:auto;left:0;right:54px;bottom:0;width:auto;max-width:none;
+    height:42vh;min-height:160px;max-height:88vh;
+    border-left:0;border-top:1px solid var(--line);box-shadow:0 -18px 50px rgba(0,0,0,.10);
+    transform:translateY(calc(100% + 8px))}
+  .pp-panel.pp-bottom.open{transform:translateY(0)}
+  .pp-panel.pp-bottom .pp-resize{left:0;top:-4px;width:100%;height:8px;cursor:ns-resize}
   .pp-resize{position:absolute;left:-4px;top:0;width:8px;height:100%;cursor:ew-resize;z-index:2}
   .pp-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-shrink:0}
   .pp-head .t{font-weight:700;font-size:14px}
@@ -203,14 +210,33 @@
   .pp-and .keyrow button{background:#2a2a2c;border:0;color:#eee;border-radius:8px;padding:7px 11px;font-size:13px;cursor:pointer}
   .pp-and .keyrow button:hover{background:#3a3a3d}
   .pp-and select{background:#1c1c1e;border:1px solid #2a2a2c;color:#eee;border-radius:7px;padding:5px 8px;font-size:12px;max-width:160px}
-  .pp-and .tools{display:flex;gap:7px;padding:8px 10px;align-items:center;background:#0f0f10;border-bottom:1px solid #2a2a2c;flex-wrap:wrap}
-  .pp-and .tools .st{color:#9a9aa0;font-size:11.5px;margin-left:auto}
-  .pp-and .tools .st b{color:#5fd08a}
-  .pp-and .tools button{background:#2a2a2c;border:0;color:#eee;border-radius:7px;padding:5px 9px;font-size:12px;cursor:pointer}
-  .pp-and .tools button:hover{background:#3a3a3d}
-  .pp-and .tools button.live{background:#1a9c54}
+  .pp-and .tools,.pp-log .tools{display:flex;gap:7px;padding:8px 10px;align-items:center;background:#0f0f10;border-bottom:1px solid #2a2a2c;flex-wrap:wrap}
+  .pp-and .tools .st,.pp-log .tools .st{color:#9a9aa0;font-size:11.5px;margin-left:auto}
+  .pp-and .tools .st b,.pp-log .tools .st b{color:#5fd08a}
+  .pp-and .tools button,.pp-log .tools button{background:#2a2a2c;border:0;color:#eee;border-radius:7px;padding:5px 9px;font-size:12px;cursor:pointer}
+  .pp-and .tools button:hover,.pp-log .tools button:hover{background:#3a3a3d}
+  .pp-and .tools button.live,.pp-log .tools button.live{background:#1a9c54}
   .pp-and .tools button.accent{background:#0b7bff;color:#fff;font-weight:600}
   .pp-and .tools button.accent:hover{background:#2f93ff}
+  /* logs — terminal-style live stream */
+  .pp-log{display:flex;flex-direction:column;height:100%;background:#0c0c0e}
+  .pp-log .out{flex:1;overflow:auto;margin:0;padding:8px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:11.5px;line-height:1.5;color:#d4d4d8;white-space:pre;tab-size:2}
+  .pp-log .out.wrap{white-space:pre-wrap;word-break:break-word}
+  .pp-log .out .ln{display:block}
+  .pp-log .out .ln.E,.pp-log .out .ln.F{color:#ff6b6b}
+  .pp-log .out .ln.W{color:#ffd166}
+  .pp-log .out .ln.I{color:#8bd5a0}
+  .pp-log .out .ln.D{color:#9aa0aa}
+  /* search: highlight all matches, emphasise the current jumped-to line */
+  .pp-log .out mark{background:#ffd166;color:#0c0c0e;border-radius:2px;padding:0 1px}
+  .pp-log .out .ln.cur{background:#2b3550;box-shadow:inset 3px 0 0 #6ea8ff}
+  .pp-log .out .ln.cur mark{background:#ff9f0a}
+  .pp-log .tools .mc{color:#9a9aa0;font-size:11.5px;font-variant-numeric:tabular-nums;min-width:34px;text-align:center}
+  .pp-log .tools button.nav{padding:5px 7px}
+  .pp-log .empty{color:#7d7d82;text-align:center;padding:30px 20px;font-size:13px;line-height:1.7}
+  .pp-log .tools button.live{background:#1a9c54}
+  .pp-log input.flt{flex:1;min-width:80px;background:#1c1c1e;border:1px solid #2a2a2c;color:#eee;border-radius:7px;padding:5px 8px;font-size:12px;outline:none}
 
   /* ============ ASO panel ============ */
   .aso{margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
@@ -463,6 +489,7 @@
        here), so they're not shown as always-on rail buttons. Device mirrors stay. -->
   <button class="rb" data-pp="android" title="Android — mirror &amp; remote-control a device (adb / scrcpy)">📱</button>
   <button class="rb" data-pp="iphone" title="iPhone — mirror &amp; control a real device (WebDriverAgent)">🍎</button>
+  <button class="rb" data-pp="logs" title="Logs — live logcat / syslog stream from the selected device, emulator or simulator">📜</button>
   <div class="sp"></div>
   <button class="rb" id="ppClose2" title="Hide panel">✕</button>
 </div>
@@ -1431,14 +1458,17 @@ window.__openFolder = async function(path){
 
   const setActive=t=>rail.querySelectorAll('.rb[data-pp]').forEach(b=>b.classList.toggle('active',b.dataset.pp===t));
   const openPanel=()=>{ panel.classList.add('open'); document.body.classList.add('pp-open'); };
-  function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('pp-open'); setActive(null); stopAndroid(); stopIos(); cur=null; }
+  function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('pp-open'); setActive(null); stopAndroid(); stopIos(); stopLogs(); cur=null; }
   function revoke(){ if(objUrl){ URL.revokeObjectURL(objUrl); objUrl=null; } }
 
   // open a tab without the toggle-closed behaviour (used by link clicks)
   function openTab(tab){
-    stopAndroid(); stopIos(); revoke();
+    stopAndroid(); stopIos(); stopLogs(); revoke();
+    const bottom=(tab==='logs');               // Logs docks full-width at the bottom
+    panel.classList.toggle('pp-bottom',bottom);
+    if(bottom) panel.style.width=''; else panel.style.height='';   // drop the other mode's inline size
     cur=tab; setActive(tab); openPanel();
-    ({web:renderWeb, media:renderMedia, md:renderMd, android:renderAndroid, iphone:renderIphone}[tab])();
+    ({web:renderWeb, media:renderMedia, md:renderMd, android:renderAndroid, iphone:renderIphone, logs:renderLogs}[tab])();
   }
   function show(tab){
     if(cur===tab){ closePanel(); return; }   // clicking the active rail icon toggles closed
@@ -1473,9 +1503,11 @@ window.__openFolder = async function(path){
   });
 
   // ---- resize drag ----
-  (function(){ const h=document.getElementById('ppResize'); let sx,sw;
-    h.addEventListener('pointerdown',e=>{ sx=e.clientX; sw=panel.offsetWidth; h.setPointerCapture(e.pointerId);
-      const mv=ev=>{ const w=Math.min(Math.max(sw+(sx-ev.clientX),320), window.innerWidth-80); panel.style.width=w+'px'; };
+  (function(){ const h=document.getElementById('ppResize'); let s,base,bottom;
+    h.addEventListener('pointerdown',e=>{ bottom=panel.classList.contains('pp-bottom');
+      s=bottom?e.clientY:e.clientX; base=bottom?panel.offsetHeight:panel.offsetWidth; h.setPointerCapture(e.pointerId);
+      const mv=ev=>{ if(bottom){ const ht=Math.min(Math.max(base+(s-ev.clientY),140), window.innerHeight-80); panel.style.height=ht+'px'; }
+        else { const w=Math.min(Math.max(base+(s-ev.clientX),320), window.innerWidth-80); panel.style.width=w+'px'; } };
       const up=()=>{ document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up); };
       document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up); }); })();
 
@@ -1572,6 +1604,8 @@ window.__openFolder = async function(path){
         <button id="andRefresh" title="Rescan devices">⟳</button>
         <button id="andLiveBtn" title="Toggle live mirror">▶ Live</button>
         <button id="andScrcpy" class="accent" title="Open a native scrcpy window — high-FPS mirror &amp; control">⚡ scrcpy</button>
+        <select id="andAvd" title="Android Virtual Devices (emulators)"><option value="">emulator…</option></select>
+        <button id="andBoot" title="Boot the selected emulator (AVD)">▶ Boot</button>
         <span class="st" id="andSt"></span>
       </div>
       <div class="scr" id="andScr"><div class="nodev">Connect a device with USB debugging,<br>then press ⟳.</div></div>
@@ -1589,17 +1623,43 @@ window.__openFolder = async function(path){
         <button data-key="enter" title="Enter">⏎</button>
         <button data-key="backspace" title="Backspace">⌫</button>
       </div></div>`;
-    body.querySelector('#andRefresh').onclick=loadDevices;
+    body.querySelector('#andRefresh').onclick=()=>{ loadDevices(); loadAvds(); };
     body.querySelector('#andLiveBtn').onclick=toggleLive;
     body.querySelector('#andScrcpy').onclick=launchScrcpy;
+    body.querySelector('#andBoot').onclick=bootEmu;
     body.querySelector('#andDev').onchange=e=>{ andSerial=e.target.value||null; if(andLive){ stopAndroid(); startLive(); } else snap(); };
     body.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>sendKey(b.dataset.key));
     const ti=body.querySelector('#andText');
     body.querySelector('#andSend').onclick=()=>{ const t=ti.value; if(t){ sendInput({action:'text',text:t}); ti.value=''; } };
     ti.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const t=ti.value; if(t){ sendInput({action:'text',text:t}); ti.value=''; } } });
-    loadDevices();
+    loadDevices(); loadAvds();
   }
   function setSt(s){ const el=body.querySelector('#andSt'); if(el) el.innerHTML=s; }
+  // ----- Android emulator (AVD) launcher -----
+  async function loadAvds(){
+    const sel=body.querySelector('#andAvd'); if(!sel) return;
+    try{ const d=await (await fetch('/api/emu/avds')).json();
+      if(!d.ok||!d.avds||!d.avds.length){ sel.innerHTML='<option value="">'+(d.ok?'no AVDs':'emulator n/a')+'</option>'; sel.disabled=true; return; }
+      sel.disabled=false;
+      sel.innerHTML='<option value="">emulator…</option>'+d.avds.map(a=>
+        `<option value="${esc(a.name)}"${a.running?' disabled':''}>${esc(a.name)}${a.running?' ✓ running':''}</option>`).join('');
+    }catch(_){ sel.innerHTML='<option value="">emulator n/a</option>'; sel.disabled=true; }
+  }
+  async function bootEmu(){
+    const name=body.querySelector('#andAvd')?.value; if(!name){ setSt('⚠️ pick an AVD'); return; }
+    setSt('⏳ booting '+esc(name)+'…');
+    try{ const d=await (await fetch('/api/emu/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})})).json();
+      if(!d.ok){ setSt('⚠️ '+(d.error||'launch failed')); return; }
+      setSt(d.already?'emulator already running':'🔨 starting emulator… ~30s');
+      let n=0; const t=setInterval(async()=>{
+        if(cur!=='android'){ clearInterval(t); return; }
+        n++; try{ const r=await (await fetch('/api/adb/devices')).json();
+          if(r.ok && r.devices.some(x=>x.state==='device')){ clearInterval(t); loadDevices(); loadAvds(); return; }
+        }catch(_){}
+        if(n>=30){ clearInterval(t); setSt('⚠️ emulator slow to boot — press ⟳'); }
+      },3000);
+    }catch(e){ setSt('⚠️ '+e); }
+  }
   async function loadDevices(){
     setSt('scanning…');
     try{ const d=await (await fetch('/api/adb/devices')).json();
@@ -1682,7 +1742,8 @@ window.__openFolder = async function(path){
   }
 
   // ---- iPhone (real device) via WebDriverAgent — mirror + control over USB ----
-  let iosLive=false, iosUdid=null, iosImg=null, iosGen=0, iosSize=null;
+  let iosLive=false, iosUdid=null, iosImg=null, iosGen=0, iosSize=null, iosKinds={};
+  const iosIsSim=u=>iosKinds[u]==='simulator';
   function stopIos(){ iosLive=false; iosGen++; const im=body.querySelector('#iosScr img');
     if(im){ im.onerror=null; im.onload=null; im.src=''; } iosImg=null; }
   function renderIphone(){
@@ -1690,8 +1751,9 @@ window.__openFolder = async function(path){
     body.innerHTML=`<div class="pp-and">
       <div class="tools">
         <select id="iosDev"><option>scanning…</option></select>
-        <button id="iosRefresh" title="Rescan devices">⟳</button>
-        <button id="iosStart" title="Auto-launch WebDriverAgent via go-ios">▶ Start WDA</button>
+        <button id="iosRefresh" title="Rescan devices &amp; simulators">⟳</button>
+        <button id="iosBoot" class="hidden" title="Boot the selected simulator (live screen only)">▶ Boot</button>
+        <button id="iosStart" title="Launch WebDriverAgent for tap/swipe control">▶ Start WDA</button>
         <button id="iosLiveBtn" title="Toggle live mirror">▶ Live</button>
         <button id="iosHelp" title="Setup help — how to launch WebDriverAgent">ⓘ Setup</button>
         <span class="st" id="iosSt"></span>
@@ -1709,9 +1771,10 @@ window.__openFolder = async function(path){
       </div></div>`;
     body.querySelector('#iosRefresh').onclick=loadIosDevices;
     body.querySelector('#iosStart').onclick=iosStart;
+    body.querySelector('#iosBoot').onclick=iosBoot;
     body.querySelector('#iosHelp').onclick=()=>{ stopIos(); paintIosSetup(); };
     body.querySelector('#iosLiveBtn').onclick=()=>{ iosLive?stopIos():iosStatus(); setIosLiveBtn(iosLive); };
-    body.querySelector('#iosDev').onchange=e=>{ iosUdid=e.target.value||null; stopIos(); iosStatus(); };
+    body.querySelector('#iosDev').onchange=e=>{ iosUdid=e.target.value||null; reflectIosKind(); stopIos(); iosStatus(); };
     body.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{ const a=b.dataset.act;
       iosInput(a==='lock'?{action:'lock'}:{action:'button',key:a}); });
     const ti=body.querySelector('#iosText');
@@ -1757,12 +1820,16 @@ window.__openFolder = async function(path){
     try{
       const d=await (await fetch('/api/wda/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({udid:iosUdid})})).json();
       if(d.running){ setIosSt('<b>WDA up ✓</b>'); iosStatus(); return; }
+      if(d.noinput){ setIosSt('<b>booted</b> · screen only — install WDA for control'); startIosLive(); return; }
       if(d.error){ setIosSt('⚠️ '+d.error);
         paintIosCmd('WebDriverAgent failed to launch', 'open '+(d.project||'WebDriverAgent.xcodeproj'),
           (d.hint||'')+(d.detail?'<br><span style="opacity:.6">'+esc(d.detail)+'</span>':'')); return; }
-      // launching — poll status until it comes up (xcodebuild build/launch)
-      paintIosHint('🔨 Building &amp; launching WebDriverAgent…<br><span style="opacity:.7">first time ~1–3 min'+
+      // simulator boots instantly → show the live screen now while WDA builds in the background
+      // simulator boots instantly → show its live screen now; real device shows a build hint
+      if(d.sim) startIosLive();
+      else paintIosHint('🔨 Building &amp; launching WebDriverAgent…<br><span style="opacity:.7">first time ~1–3 min'+
         (d.team?' · signing team '+esc(d.team):'')+' — auto-connects when ready</span>');
+      // launching — poll status until WDA comes up (xcodebuild build/launch)
       let n=0; const t=setInterval(async()=>{
         if(cur!=='iphone'){ clearInterval(t); return; }
         n++; setIosSt('🔨 building WDA… '+n*4+'s');
@@ -1774,22 +1841,47 @@ window.__openFolder = async function(path){
       }, 4000);
     }catch(e){ setIosSt('⚠️ '+e); }
   }
+  // toggle the ▶ Boot button: only meaningful for a simulator (screen-only boot)
+  function reflectIosKind(){ body.querySelector('#iosBoot')?.classList.toggle('hidden',!iosIsSim(iosUdid)); }
   async function loadIosDevices(){
     setIosSt('scanning…');
     try{ const d=await (await fetch('/api/wda/devices')).json();
       const sel=body.querySelector('#iosDev'); if(!sel) return;
-      if(!d.devices||!d.devices.length){ sel.innerHTML='<option value="">no device</option>';
-        setIosSt(d.iproxy?'no iPhone':'⚠️ install libimobiledevice'); paintIosHint('No iPhone detected.<br>Plug in &amp; trust the device, then ⟳.'); return; }
-      sel.innerHTML=d.devices.map(x=>`<option value="${esc(x.udid)}">${esc(x.name)}${x.ios?' · iOS '+esc(x.ios):''}</option>`).join('');
-      if(!iosUdid||!d.devices.some(x=>x.udid===iosUdid)) iosUdid=d.devices[0].udid;
-      sel.value=iosUdid; iosStatus();
+      const devs=d.devices||[], sims=d.sims||[];
+      iosKinds={}; devs.forEach(x=>iosKinds[x.udid]='device'); sims.forEach(x=>iosKinds[x.udid]='simulator');
+      if(!devs.length && !sims.length){ sel.innerHTML='<option value="">no device</option>';
+        setIosSt(d.simctl?'no iPhone or simulator':(d.iproxy?'no iPhone':'⚠️ install libimobiledevice'));
+        paintIosHint('No iPhone or simulator found.<br>Plug in a device, or create a simulator in Xcode, then ⟳.'); return; }
+      const opt=x=>`<option value="${esc(x.udid)}">${esc(x.name)}${x.ios?' · iOS '+esc(x.ios):''}${x.state==='Booted'?' ✓':''}</option>`;
+      let html='';
+      if(devs.length) html+='<optgroup label="Devices">'+devs.map(opt).join('')+'</optgroup>';
+      if(sims.length) html+='<optgroup label="Simulators">'+sims.map(opt).join('')+'</optgroup>';
+      sel.innerHTML=html;
+      const all=devs.concat(sims);
+      if(!iosUdid||!all.some(x=>x.udid===iosUdid)) iosUdid=(devs[0]||sims[0]).udid;
+      sel.value=iosUdid; reflectIosKind(); iosStatus();
+    }catch(e){ setIosSt('⚠️ '+e); }
+  }
+  // ▶ Boot — bring up a simulator for a screenshot-only mirror (no WDA build)
+  async function iosBoot(){
+    if(!iosUdid||!iosIsSim(iosUdid)){ setIosSt('⚠️ pick a simulator'); return; }
+    setIosSt('⏳ booting simulator…');
+    try{ const d=await (await fetch('/api/sim/boot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({udid:iosUdid})})).json();
+      if(!d.ok){ setIosSt('⚠️ '+(d.error||'boot failed')); return; }
+      setIosSt('<b>booted</b> · screen only — ▶ Start WDA for control'); startIosLive();
     }catch(e){ setIosSt('⚠️ '+e); }
   }
   async function iosStatus(){
     if(!iosUdid){ return; }
     setIosSt('connecting…');
     try{ const d=await (await fetch('/api/wda/status?udid='+encodeURIComponent(iosUdid))).json();
-      if(!d.running){ setIosSt('⚠️ WDA not running'); paintIosSetup(); return; }
+      if(!d.running){
+        if(d.sim){                       // simulator: mirror via simctl screenshots; WDA optional for control
+          if(d.booted){ setIosSt('<b>screen only</b> · ▶ Start WDA for control'); startIosLive(); }
+          else { setIosSt('shut down · press ▶ Boot'); paintIosHint('Simulator is shut down.<br>Press <b>▶ Boot</b> for the live screen, or <b>▶ Start WDA</b> for full control.'); }
+          return;
+        }
+        setIosSt('⚠️ WDA not running'); paintIosSetup(); return; }
       iosSize=d.size&&d.size.width?d.size:null;
       setIosSt('<b>connected</b>'+(iosSize?' · '+iosSize.width+'×'+iosSize.height+'pt':''));
       startIosLive();
@@ -1822,6 +1914,139 @@ window.__openFolder = async function(path){
     if(!iosUdid) return; payload.udid=iosUdid;
     try{ await fetch('/api/wda/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       if(!iosLive){ const im=ensureIosImg(); if(im) setTimeout(()=>{ im.src=iosFrameUrl(); },200); } }catch(_){}
+  }
+
+  // ---- LOGS — live logcat / syslog / simctl stream from the selected target ----
+  let logAbort=null, logTarget=null, logKinds={}, logAuto=true, logFilter='', logBuf=[];
+  let logSearch='', logMatches=[], logMatchIdx=-1;     // jump-to-line search state
+  const LOG_MAX=4000;                                  // cap retained lines (memory)
+  function stopLogs(){ if(logAbort){ try{ logAbort.abort(); }catch(_){} logAbort=null; } logBuf=[]; }
+  function renderLogs(){
+    titleEl.textContent='Logs';
+    body.innerHTML=`<div class="pp-log">
+      <div class="tools">
+        <select id="logTgt"><option>scanning…</option></select>
+        <button id="logRefresh" title="Rescan devices, emulators &amp; simulators">⟳</button>
+        <select id="logLvl" title="Minimum level (Android logcat)">
+          <option value="">All</option><option value="V">Verbose</option><option value="D">Debug</option>
+          <option value="I" selected>Info</option><option value="W">Warn</option><option value="E">Error</option>
+        </select>
+        <input id="logFlt" class="flt" placeholder="filter text…">
+        <input id="logSearch" class="flt" placeholder="🔍 search → jump">
+        <button id="logPrev" class="nav" title="Previous match (Shift+Enter)">↑</button>
+        <button id="logNext" class="nav" title="Next match (Enter)">↓</button>
+        <span class="mc" id="logMatch"></span>
+        <button id="logAuto" class="live" title="Auto-scroll to newest">⤓ Auto</button>
+        <button id="logClear" title="Clear the view (Android: also clears the device buffer)">🗑 Clear</button>
+        <span class="st" id="logSt"></span>
+      </div>
+      <pre class="out" id="logOut"><div class="empty">Pick a device, emulator or simulator to stream its log.</div></pre></div>`;
+    body.querySelector('#logRefresh').onclick=loadLogTargets;
+    body.querySelector('#logTgt').onchange=e=>{ logTarget=e.target.value||null; startLog(); };
+    body.querySelector('#logLvl').onchange=startLog;
+    const fi=body.querySelector('#logFlt');
+    fi.oninput=()=>{ logFilter=fi.value.toLowerCase(); paintLog(); };
+    const se=body.querySelector('#logSearch');
+    se.oninput=()=>{ logSearch=se.value.toLowerCase(); logMatchIdx=-1; paintLog();
+      if(logMatches.length) searchTo(logMatches.length-1); else updateMatchCount(); };  // jump to newest match
+    se.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); searchStep(e.shiftKey?-1:1); } });
+    body.querySelector('#logPrev').onclick=()=>searchStep(-1);
+    body.querySelector('#logNext').onclick=()=>searchStep(1);
+    body.querySelector('#logAuto').onclick=e=>{ logAuto=!logAuto; e.currentTarget.classList.toggle('live',logAuto);
+      if(logAuto) scrollLog(); };
+    body.querySelector('#logClear').onclick=clearLog;
+    loadLogTargets();
+  }
+  // ---- log search (jump between matching lines) ----
+  function markLine(line,term){
+    if(!term) return esc(line);
+    const low=line.toLowerCase(); let out='',i=0,j;
+    while((j=low.indexOf(term,i))>=0){ out+=esc(line.slice(i,j))+'<mark>'+esc(line.slice(j,j+term.length))+'</mark>'; i=j+term.length; }
+    return out+esc(line.slice(i));
+  }
+  function updateMatchCount(){ const c=body.querySelector('#logMatch'); if(!c) return;
+    c.textContent=logSearch?(logMatches.length?((logMatchIdx<0?0:logMatchIdx+1)+'/'+logMatches.length):'0/0'):''; }
+  function refreshMatches(){   // re-collect match nodes after a repaint; keep the current one marked (no scroll)
+    const out=body.querySelector('#logOut'); logMatches=out?[...out.querySelectorAll('.ln.m')]:[];
+    if(logMatchIdx>=logMatches.length) logMatchIdx=logMatches.length-1;
+    if(logMatchIdx>=0&&logMatches[logMatchIdx]) logMatches[logMatchIdx].classList.add('cur');
+    updateMatchCount();
+  }
+  function searchTo(idx){
+    if(!logMatches.length){ updateMatchCount(); return; }
+    logMatchIdx=Math.max(0,Math.min(idx,logMatches.length-1));
+    logMatches.forEach(n=>n.classList.remove('cur'));
+    const n=logMatches[logMatchIdx]; n.classList.add('cur'); n.scrollIntoView({block:'center'});
+    updateMatchCount();
+  }
+  function searchStep(dir){
+    if(!logSearch) return;
+    if(!logMatches.length){ refreshMatches(); if(!logMatches.length) return; }
+    let i=logMatchIdx<0?(dir>0?0:logMatches.length-1):logMatchIdx+dir;
+    if(i<0) i=logMatches.length-1; if(i>=logMatches.length) i=0;
+    searchTo(i);
+  }
+  function setLogSt(s){ const el=body.querySelector('#logSt'); if(el) el.innerHTML=s; }
+  async function loadLogTargets(){
+    setLogSt('scanning…');
+    try{ const d=await (await fetch('/api/logs/targets')).json();
+      const sel=body.querySelector('#logTgt'); if(!sel) return;
+      logKinds={}; (d.targets||[]).forEach(t=>logKinds[t.id]=t.kind);
+      if(!d.targets||!d.targets.length){ sel.innerHTML='<option value="">no device</option>'; setLogSt('no device'); return; }
+      sel.innerHTML=d.targets.map(t=>`<option value="${esc(t.id)}">${esc(t.label)}</option>`).join('');
+      if(!logTarget||!d.targets.some(t=>t.id===logTarget)) logTarget=d.targets[0].id;
+      sel.value=logTarget; startLog();
+    }catch(e){ setLogSt('⚠️ '+e); }
+  }
+  const logKindOf=id=>logKinds[id]||'android';
+  function clearLog(){
+    const kind=logKindOf(logTarget);
+    if(kind==='android'&&logTarget) fetch('/api/logs/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,id:logTarget})}).catch(()=>{});
+    logBuf=[]; paintLog();
+  }
+  function lineClass(t){ const m=t.match(/\b([VDIWEF])\//)||t.match(/\b([VDIWEF])\s/); return m?m[1]:''; }
+  function paintLog(){
+    const out=body.querySelector('#logOut'); if(!out) return;
+    const show=logFilter?logBuf.filter(l=>l.toLowerCase().includes(logFilter)):logBuf;
+    if(!show.length){ out.innerHTML='<div class="empty">'+(logBuf.length?'No lines match the filter.':'Waiting for log output…')+'</div>';
+      logMatches=[]; updateMatchCount(); return; }
+    out.innerHTML=show.map(l=>{ const m=logSearch&&l.toLowerCase().includes(logSearch);
+      return `<span class="ln ${lineClass(l)}${m?' m':''}">${logSearch?markLine(l,logSearch):esc(l)}</span>`; }).join('');
+    refreshMatches();
+    scrollLog();
+  }
+  // auto-scroll to the tail — but never while a search is active (keep the match in view)
+  function scrollLog(){ if(!logAuto||logSearch) return; const out=body.querySelector('#logOut'); if(out) out.scrollTop=out.scrollHeight; }
+  function pushLines(lines){
+    for(const l of lines) if(l) logBuf.push(l);
+    if(logBuf.length>LOG_MAX) logBuf.splice(0,logBuf.length-LOG_MAX);
+  }
+  async function startLog(){
+    stopLogs();
+    if(!logTarget){ setLogSt('no device'); return; }
+    const kind=logKindOf(logTarget);
+    const lvl=body.querySelector('#logLvl');
+    if(lvl) lvl.disabled=(kind!=='android');     // level filter is logcat-only
+    const level=kind==='android'?(lvl?lvl.value:''):'';
+    logBuf=[]; paintLog(); setLogSt('streaming…');
+    const ctrl=new AbortController(); logAbort=ctrl;
+    const url='/api/logs/stream?kind='+encodeURIComponent(kind)+'&id='+encodeURIComponent(logTarget)+(level?'&level='+level:'');
+    try{
+      const res=await fetch(url,{signal:ctrl.signal});
+      if(!res.ok){ const j=await res.json().catch(()=>({})); setLogSt('⚠️ '+(j.error||res.status)); return; }
+      setLogSt('<b>live</b>');
+      const reader=res.body.getReader(), dec=new TextDecoder(); let tail='';
+      let pending=false;
+      const flush=()=>{ pending=false; paintLog(); };
+      while(true){
+        const {value,done}=await reader.read();
+        if(done) break;
+        tail+=dec.decode(value,{stream:true});
+        const parts=tail.split('\n'); tail=parts.pop();
+        if(parts.length){ pushLines(parts); if(!pending){ pending=true; requestAnimationFrame(flush); } }
+      }
+      if(ctrl===logAbort) setLogSt('stream ended');
+    }catch(e){ if(e.name!=='AbortError'&&ctrl===logAbort) setLogSt('⚠️ '+e); }
   }
 
   // Esc closes the panel (unless an editor/lightbox owns Escape already)

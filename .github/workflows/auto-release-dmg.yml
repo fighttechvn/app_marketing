@@ -1,6 +1,6 @@
 name: Auto release desktop (macOS + Windows)
 
-# Build-first auto-release: on push to main (or manual), if the desktop version in
+# Build-first auto-release: on push to uat (or manual), if the desktop version in
 # tauri.conf.json has no matching release yet, build BOTH installers — macOS .dmg and
 # Windows .exe (NSIS) — and, on success, auto-create the tag `desktop-v<version>` +
 # GitHub Release and upload the artifacts (+ a combined updater latest.json).
@@ -12,7 +12,7 @@ name: Auto release desktop (macOS + Windows)
 
 on:
   push:
-    branches: [main]
+    branches: [uat]
     paths:
       - 'desktop/**'
       - '.github/workflows/auto-release-dmg.yml'
@@ -234,7 +234,7 @@ jobs:
             dist/latest.json
           fail_on_unmatched_files: false
           body: |
-            App Preview — desktop build (auto-released from main).
+            App Preview — desktop build (auto-released from uat).
 
             • macOS (.dmg): signed with Developer ID & notarized — opens with no Gatekeeper warning.
             • Windows (.exe): NSIS installer. Not Authenticode-signed yet, so SmartScreen may warn once

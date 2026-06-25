@@ -1870,7 +1870,10 @@ window.__dragHint = function(show){
       if(sims.length) html+='<optgroup label="Simulators">'+sims.map(opt).join('')+'</optgroup>';
       sel.innerHTML=html;
       const all=devs.concat(sims);
-      if(!iosUdid||!all.some(x=>x.udid===iosUdid)) iosUdid=(devs[0]||sims[0]).udid;
+      // Auto-select: keep a still-valid pick, else prefer one that's already open —
+      // a connected device, or a Booted simulator — so the live screen renders at once.
+      if(!iosUdid||!all.some(x=>x.udid===iosUdid))
+        iosUdid=(devs[0]||sims.find(s=>s.state==='Booted')||sims[0]).udid;
       sel.value=iosUdid; reflectIosKind(); iosStatus();
     }catch(e){ setIosSt('⚠️ '+e); }
   }

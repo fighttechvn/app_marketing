@@ -26,6 +26,11 @@ cp -R assets "$OUT/playground/assets"
 cp home.html "$OUT/index.html"
 cp -R screenshots "$OUT/screenshots"
 
+# 3b) SRS report → <base>/srs-index.html  (regenerate from resources/, fall back
+#     to the committed copy if the renderer is unavailable).
+if [ -f resources/srs.sh ]; then bash resources/srs.sh >/dev/null 2>&1 || true; fi
+[ -f srs-index.html ] && cp srs-index.html "$OUT/srs-index.html"
+
 # 4) Rewrite root-absolute links in the landing to the Pages base.
 python3 - "$OUT/index.html" "$PAGES_BASE" <<'PY'
 import sys
@@ -36,6 +41,7 @@ for pat, rep in (
     ('="/docs',       f'="{base}/docs'),
     ('href="/"',      f'href="{base}/"'),
     ('"/screenshots/', f'"{base}/screenshots/'),
+    ('"/srs-index.html', f'"{base}/srs-index.html'),
 ):
     s = s.replace(pat, rep)
 open(f, "w", encoding="utf-8").write(s)

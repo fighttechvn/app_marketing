@@ -144,27 +144,28 @@
       </div>
       <button id="copyPrompt" class="btn primary" data-i18n="agent_copy">📋 Copy prompt</button>
     </div>
-    <pre id="agentPrompt">Set up and preview my mobile store listing with the App Preview tool, then capture screenshots.
+    <pre id="agentPrompt">Clone the App Preview tool, capture my app's store screenshots into the New variant, and open the local preview.
 
 1. Clone: git clone https://github.com/fighttechvn/app_marketing .app_marketing && cd .app_marketing
-2. Install backend deps (for Sync / Test keys):
-   pip install pyjwt cryptography google-api-python-client google-auth google-auth-httplib2
-   (Node 22+ is required to build the docs.)
-3. Run it: ./run.sh  → serves http://localhost:8092/ (landing), /playground/ (tool), /docs/.
-4. Open http://localhost:8092/playground/ and fill the New variant:
-   - click "✨ Try template" for demo data, OR drag in screenshots / use "Load images…",
-   - edit name / subtitle / description / keywords directly on the page.
-5. (Optional — real store data) Import ▸ Env: paste a .env with App Store Connect +
-   Google Play API keys → "🔌 Test keys" → Save → "⟳ Sync" to load the live listing
-   into the Current variant. (Or use "📁 Open folder" to point at an existing project.)
-6. Capture screenshots with your browser/preview tool: for BOTH App Store and Google
-   Play, and for EACH locale (en-US, vi, …), screenshot the iPhone / iPad / Android
-   phone galleries. Also open "Review Diff" (Current → New) and screenshot it.
-7. QA: enable "ASO checks" and run "Release checklist". List anything flagged:
-   missing device sizes, over-limit title/subtitle/keywords, empty locales, missing
-   icon/feature graphic.
-8. Report back: device sizes present per store, ASO warnings, and checklist gaps to
-   fix before submitting. Put the screenshots in ./preview-shots/.</pre>
+2. Install deps: pip install pyjwt cryptography google-api-python-client google-auth google-auth-httplib2
+   (Node 22+ is needed for the docs.)
+3. Start the local server in the background: ./run.sh   → serves http://localhost:8092/
+4. Capture my app's screenshots (from the iOS Simulator + Android emulator, or images
+   I provide) and SAVE them into ./assets/new/ with these EXACT names + sizes, NO alpha:
+     iphone-01.png … iphone-05.png   1320×2868   (App Store iPhone 6.9")
+     ipad-01.png   … ipad-05.png     2064×2752   (App Store iPad 13")
+     phone-01.png  … phone-05.png    1344×2688   (Google Play phone)
+   Resize/letterbox to the exact size and strip alpha, e.g.:
+     ffmpeg -y -i in.png -vf "scale=1320:2868:force_original_aspect_ratio=decrease,\
+pad=1320:2868:(ow-iw)/2:(oh-ih)/2:white,format=rgb24" -pix_fmt rgb24 assets/new/iphone-01.png
+5. Build the New listing from those files: python3 scripts/build-new.py
+6. Open http://localhost:8092/playground/ and confirm the New variant shows the
+   screenshots (reload). Switch App Store / Google Play and each locale; screenshot it.
+7. QA: enable "ASO checks" + run "Release checklist". Report missing device sizes,
+   over-limit title/subtitle/keywords, empty locales, missing icon/feature graphic.
+8. (Optional — real metadata) Import ▸ Env with App Store Connect + Google Play API
+   keys → "🔌 Test keys" → Save → "⟳ Sync" to load the live listing into Current,
+   then open "Review Diff" (Current → New).</pre>
   </section>
 
   <section class="links">

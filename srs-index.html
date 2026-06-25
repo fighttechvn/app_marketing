@@ -1,0 +1,1863 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Software Requirements Specification</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --color-primary: #FCD535;
+      --color-canvas: #ffffff;
+      --color-surface: #fafafa;
+      --color-surface-strong: #f3f3f5;
+      --color-ink: #181a20;
+      --color-muted: #707a8a;
+      --color-hairline: #eaecef;
+      --color-link: #2563eb;
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: var(--font-body); color: var(--color-ink); background: var(--color-surface); margin: 0; padding: 0; line-height: 1.6; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    aside { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; background: var(--color-canvas); border-right: 1px solid var(--color-hairline); padding: 24px 16px; }
+    aside h2 { font-size: 14px; text-transform: uppercase; color: var(--color-muted); margin: 0 0 12px; letter-spacing: .03em; border: 0; padding: 0; }
+    aside nav ol, aside nav ul { list-style: none; padding: 0; margin: 0; }
+    aside nav .toc-h2 > a { font-weight: 600; font-size: 13px; color: var(--color-ink); display: block; padding: 6px 10px; border-radius: 6px; text-decoration: none; }
+    aside nav .toc-h2 > a:hover { background: var(--color-surface); }
+    aside nav .toc-h2.active > a { background: var(--color-primary); color: var(--color-ink); }
+    aside nav .toc-h3 { padding-left: 18px; border-left: 2px solid var(--color-hairline); margin-left: 10px; }
+    aside nav .toc-h3 a { display: block; padding: 4px 10px; font-size: 12px; color: var(--color-muted); border-radius: 4px; text-decoration: none; line-height: 1.4; }
+    aside nav .toc-h3 a:hover { background: var(--color-surface); color: var(--color-ink); }
+    aside nav .toc-h3 a.active { color: var(--color-ink); font-weight: 600; background: var(--color-surface); }
+    aside nav .toc-h2.collapsed .toc-h3 { display: none; }
+    aside nav .toggle { cursor: pointer; user-select: none; color: var(--color-muted); margin-right: 4px; display: inline-block; width: 12px; transition: transform .15s; }
+    aside nav .toc-h2.collapsed .toggle { transform: rotate(-90deg); }
+    main { padding: 40px 60px; max-width: 1100px; }
+    main h1 { font-size: 32px; border-bottom: 2px solid var(--color-ink); padding-bottom: 12px; }
+    main h2 { font-size: 24px; margin-top: 40px; border-bottom: 1px solid var(--color-hairline); padding-bottom: 6px; }
+    main h3 { font-size: 18px; margin-top: 28px; color: var(--color-ink); }
+    main h4 { font-size: 16px; margin-top: 20px; }
+    main p, main li { font-size: 14px; }
+    main code { font-family: var(--font-mono); font-size: 13px; background: var(--color-surface); padding: 2px 6px; border-radius: 4px; }
+    main pre { background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 13px; }
+    main pre.mermaid { background: var(--color-canvas); text-align: center; color: var(--color-ink); white-space: pre; }
+    main .mermaid svg { max-width: 100%; }
+    main table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 13px; }
+    main th, main td { border: 1px solid var(--color-hairline); padding: 8px 12px; text-align: left; vertical-align: top; }
+    main th { background: var(--color-surface); font-weight: 600; }
+    main a { color: var(--color-link); text-decoration: none; }
+    main a:hover { text-decoration: underline; }
+    main hr { border: none; border-top: 1px solid var(--color-hairline); margin: 32px 0; }
+    main blockquote { border-left: 4px solid var(--color-primary); margin: 16px 0; padding: 8px 16px; background: var(--color-surface); color: var(--color-muted); }
+    .meta { color: var(--color-muted); font-size: 13px; margin-bottom: 24px; }
+    footer { padding: 24px 60px; border-top: 1px solid var(--color-hairline); color: var(--color-muted); font-size: 13px; background: var(--color-canvas); }
+    footer code { font-family: var(--font-mono); background: var(--color-surface); padding: 2px 6px; border-radius: 4px; }
+    /* View switcher (Docs / Flow / Board) */
+    .view-switch { display: flex; gap: 6px; margin: 0 0 16px; }
+    .view-switch button { flex: 1; font-family: var(--font-body); font-size: 12px; font-weight: 600; padding: 8px 6px; border: 1px solid var(--color-hairline); background: var(--color-canvas); color: var(--color-muted); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: background .15s, color .15s, border-color .15s; }
+    .view-switch button:hover { background: var(--color-surface); color: var(--color-ink); }
+    .view-switch button.active { background: var(--color-primary); color: var(--color-ink); border-color: var(--color-primary); }
+    /* Flow + Board views expand to the full content width */
+    body[data-view="flow"] main, body[data-view="board"] main { max-width: none; }
+    main section > h2:first-child { margin-top: 0; }
+    /* Flow view — canvas of screen mockups joined by navigation arrows */
+    .flow-canvas { display: flex; align-items: center; gap: 0; overflow-x: auto; padding: 28px 24px; background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 12px; margin: 16px 0; }
+    .flow-screen { flex: none; display: flex; flex-direction: column; align-items: center; }
+    .flow-screen .scr-cap { font-family: var(--font-mono); font-size: 12px; color: var(--color-muted); margin-bottom: 10px; text-align: center; max-width: 360px; }
+    .flow-screen pre { margin: 0; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 16px; font-size: 11px; line-height: 1.3; white-space: pre; color: var(--color-ink); box-shadow: 0 6px 18px rgba(24, 26, 32, .06); }
+    .flow-connector { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 0 16px; min-width: 150px; }
+    .flow-arrow { display: flex; align-items: center; gap: 6px; font-size: 11px; white-space: nowrap; }
+    .flow-arrow .evt { font-family: var(--font-mono); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 6px; padding: 2px 7px; color: var(--color-ink); }
+    .flow-arrow .line { font-size: 20px; line-height: 1; }
+    .flow-arrow.fwd { color: #2563eb; }
+    .flow-arrow.fwd .line { color: #2563eb; }
+    .flow-arrow.back { color: var(--color-muted); }
+    .flow-legend { display: flex; flex-wrap: wrap; gap: 20px; font-size: 13px; color: var(--color-muted); margin-top: 12px; }
+    .flow-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .flow-legend .key { font-family: var(--font-mono); color: var(--color-ink); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 4px; padding: 1px 6px; }
+    /* Board / List view */
+    .board-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .layout-switch { display: inline-flex; gap: 4px; }
+    .layout-switch button { font-family: var(--font-body); font-size: 12px; font-weight: 600; padding: 5px 12px; border: 1px solid var(--color-hairline); background: var(--color-canvas); color: var(--color-muted); border-radius: 6px; cursor: pointer; }
+    .layout-switch button.active { background: var(--color-ink); color: #fff; border-color: var(--color-ink); }
+    .board { display: flex; gap: 16px; margin-top: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
+    .board-col { flex: 1 1 0; min-width: 240px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-top-width: 3px; border-radius: 12px; padding: 14px; }
+    .board-col[data-status="backlog"] { border-top-color: #94a3b8; }
+    .board-col[data-status="todo"] { border-top-color: #6366f1; }
+    .board-col[data-status="inprogress"] { border-top-color: #f59e0b; }
+    .board-col[data-status="inreview"] { border-top-color: #8b5cf6; }
+    .board-col[data-status="done"] { border-top-color: #16a34a; }
+    /* List layout: a flat list of user stories, no status columns */
+    .list-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
+    .filter-tag { font-family: var(--font-body); font-size: 12px; font-weight: 600; padding: 6px 12px; border: 1px solid var(--color-hairline); background: var(--color-canvas); color: var(--color-muted); border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .filter-tag:hover { background: var(--color-surface); color: var(--color-ink); }
+    .filter-tag.active { background: var(--color-ink); color: #fff; border-color: var(--color-ink); }
+    .filter-tag .ft-count { font-size: 11px; opacity: .75; }
+    #board-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    #board-list .story-card { display: flex; align-items: center; gap: 14px; }
+    #board-list .story-head { margin-bottom: 0; flex: none; }
+    #board-list .story-title { flex: 1; margin: 0; }
+    #board-list .story-foot { margin-top: 0; flex: none; white-space: nowrap; }
+    .status-badge { display: none; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+    #board-list .status-badge { display: inline-block; }
+    .status-badge.st-backlog { background: #eef2f6; color: #475569; }
+    .status-badge.st-todo { background: #e0e7ff; color: #4338ca; }
+    .status-badge.st-inprogress { background: #fef3c7; color: #92400e; }
+    .status-badge.st-inreview { background: #ede9fe; color: #6d28d9; }
+    .status-badge.st-done { background: #dcfce7; color: #166534; }
+    .board-col-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--color-muted); margin: 0 0 12px; display: flex; align-items: center; }
+    .col-count { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--color-muted); background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 999px; text-align: center; }
+    .col-empty { color: var(--color-muted); font-size: 13px; text-align: center; padding: 16px 0; margin: 0; }
+    .board-cards { display: flex; flex-direction: column; gap: 12px; min-height: 8px; }
+    .story-card { background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 10px; padding: 14px; cursor: pointer; transition: box-shadow .15s, transform .15s, border-color .15s; }
+    .story-card:hover { border-color: var(--color-primary); box-shadow: 0 4px 14px rgba(24, 26, 32, .08); transform: translateY(-1px); }
+    .story-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .story-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .story-id { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--color-muted); }
+    .epic-tag { font-size: 11px; font-weight: 600; color: var(--color-muted); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 6px; padding: 1px 8px; }
+    .story-title { font-size: 14px; margin: 0; color: var(--color-ink); line-height: 1.45; }
+    .story-foot { margin-top: 10px; font-size: 12px; color: var(--color-muted); }
+    .story-foot .task-count { font-weight: 700; color: var(--color-ink); }
+    .story-full { display: none; }
+    .story-desc { font-size: 14px; color: var(--color-muted); margin: 0 0 14px; }
+    .task-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    .task { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.5; }
+    .task .check { flex: none; width: 16px; height: 16px; border-radius: 4px; background: #16a34a; color: #fff; font-size: 11px; line-height: 16px; text-align: center; }
+    .task.task-sub { margin-left: 24px; font-size: 13px; color: var(--color-muted); }
+    .task.task-sub .check { background: var(--color-muted); }
+    /* Story detail dialog */
+    dialog#story-dialog { border: 0; border-radius: 14px; padding: 0; max-width: 660px; width: calc(100% - 40px); box-shadow: 0 24px 60px rgba(0, 0, 0, .25); }
+    dialog#story-dialog::backdrop { background: rgba(24, 26, 32, .45); }
+    .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--color-hairline); }
+    .dialog-head .story-id { display: block; margin-bottom: 4px; }
+    .dialog-head h3 { margin: 0; font-size: 17px; }
+    .dialog-close { border: 0; background: var(--color-surface); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 16px; line-height: 1; color: var(--color-muted); flex: none; }
+    .dialog-close:hover { background: var(--color-surface-strong); color: var(--color-ink); }
+    .dialog-body { padding: 18px 22px; max-height: 70vh; overflow-y: auto; }
+    @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } aside { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--color-hairline); } main { padding: 24px; } footer { padding: 16px 24px; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <h2>App Preview</h2>
+      <div class="meta">Store Listing Preview · v0.4.0</div>
+      <div class="view-switch">
+        <button type="button" data-view="docs" class="active">📄 Docs</button>
+        <button type="button" data-view="flow">🔀 Flow</button>
+        <button type="button" data-view="board">🗂️ Board</button>
+      </div>
+      <nav id="toc-nav"><ol id="toc"></ol></nav>
+    </aside>
+    <main>
+      <section id="content">
+<h1 id="software-requirements-specification-app-preview">Software Requirements Specification — App Preview</h1>
+<p><strong>Product:</strong> App Preview (Store Listing Preview)</p>
+<p><strong>Version:</strong> 0.4.0</p>
+<p><strong>Status:</strong> Living document</p>
+<p><strong>Owner:</strong> fighttechvn / app_marketing</p>
+<p><strong>Generated from:</strong> <code>resources/user-story/</code>, <code>resources/technial-design/</code>, <code>resources/screens/</code> (authored with the <code>add-feat</code> + <code>add-srs</code> skills)</p>
+<p>---</p>
+<h2 id="1-introduction">1. Introduction</h2>
+<h3 id="1-1-purpose">1.1 Purpose</h3>
+<p>App Preview is a local-first tool to <strong>assemble, preview, diff, and QA an App Store / Google Play listing before you ship it</strong>. This SRS captures the product's requirements, user stories, use cases, screens, data model, non-functional requirements, risks, and test traceability.</p>
+<h3 id="1-2-scope">1.2 Scope</h3>
+<ul>
+<li><strong>In scope:</strong> listing preview/edit for both stores, live store sync (read), Current→New diffing, ASO/character-limit audit, first-release checklist, credential test/import/export, live device mirroring, and signed desktop distribution with auto-update.</li>
+<li><strong>Out of scope:</strong> writing/uploading metadata or screenshots back to the stores, the user's own app build signing, payments, analytics.</li>
+</ul>
+<h3 id="1-3-definitions">1.3 Definitions</h3>
+<table><tbody>
+<tr>
+<td>Term</td>
+<td>Meaning</td>
+</tr>
+<tr>
+<td>Listing</td>
+<td>The full set of store metadata + screenshots + graphics for an app (the <code>DATA</code> object / <code>listing*.json</code>).</td>
+</tr>
+<tr>
+<td>New / Current</td>
+<td>The version being prepared (editable) vs the version live on the store (read-only, from Sync).</td>
+</tr>
+<tr>
+<td>ASO</td>
+<td>App Store Optimization — keyword/title/field tuning for store search.</td>
+</tr>
+<tr>
+<td>Sync</td>
+<td>Pulling the live listing from App Store Connect + Google Play.</td>
+</tr>
+<tr>
+<td>Sidecar</td>
+<td>The PyInstaller-bundled Python backend embedded in the desktop app.</td>
+</tr>
+<tr>
+<td>WDA</td>
+<td>WebDriverAgent, used to mirror/control a real iPhone.</td>
+</tr>
+</tbody></table>
+<h3 id="1-4-references">1.4 References</h3>
+<ul>
+<li><code>README.md</code>, <code>docs/</code> (Astro Starlight, live at https://fighttechvn.github.io/app_marketing/)</li>
+<li><code>resources/feature-brief.md</code></li>
+<li>OpenAPI: <code>docs/public/openapi.yaml</code></li>
+</ul>
+<p>---</p>
+<h2 id="2-overall-description">2. Overall Description</h2>
+<h3 id="2-1-product-perspective">2.1 Product perspective</h3>
+<p>A multi-surface product sharing one backend and one Playground UI:</p>
+<ul>
+<li><strong>Local site</strong> (<code>run.sh</code>): landing + Playground + docs + <code>/api/*</code> on one <code>127.0.0.1</code> origin.</li>
+<li><strong>Static build</strong> (GitHub Pages): preview-only Playground + docs (no backend; Sync/Test inert).</li>
+<li><strong>Desktop app</strong> (Tauri + Python sidecar): native window hosting the Playground with full backend.</li>
+</ul>
+<h3 id="2-2-architecture">2.2 Architecture</h3>
+<pre class="mermaid">
+flowchart LR
+  subgraph Client
+    H[home.html landing]
+    P[index.html Playground]
+  end
+  subgraph Backend[server/ on 127.0.0.1]
+    R[http_app.py router]
+    S[stores.py ASC + Play]
+    A[android.py adb]
+    I[ios.py WDA]
+    PV[preview.py]
+    PR[project.py]
+    CR[credentials.py]
+  end
+  subgraph Stores
+    ASC[App Store Connect]
+    GP[Google Play]
+  end
+  P --&gt;|/api/*| R
+  R --&gt; S --&gt; ASC
+  S --&gt; GP
+  R --&gt; A
+  R --&gt; I
+  R --&gt; PV
+  R --&gt; PR
+  R --&gt; CR
+  Desktop[Tauri shell] --&gt;|spawns sidecar| Backend
+</pre>
+<h3 id="2-3-user-classes">2.3 User classes</h3>
+<ul>
+<li><strong>Indie developer / first-time publisher</strong> — needs the checklist + preview + key verification.</li>
+<li><strong>Release manager</strong> — needs diff + ASO + multi-locale review per update.</li>
+<li><strong>Designer</strong> — needs screenshot galleries + slot diff + device mirroring.</li>
+<li><strong>Maintainer</strong> — builds and signs the desktop app.</li>
+</ul>
+<h3 id="2-4-operating-environment">2.4 Operating environment</h3>
+<ul>
+<li>macOS (required for iOS sync, device mirroring, and desktop signing); Linux/Windows for the web tool and Android.</li>
+<li>Python 3 backend (stdlib <code>http.server</code> + PyJWT, cryptography, google-api-python-client, google-auth).</li>
+<li>Modern browser (vanilla JS, no framework). Node + Astro for building docs.</li>
+</ul>
+<p>---</p>
+<h2 id="3-requirements-summary">3. Requirements Summary</h2>
+<table><tbody>
+<tr>
+<td>ID</td>
+<td>Requirement</td>
+<td>Epic</td>
+<td>Priority</td>
+</tr>
+<tr>
+<td>FR-01</td>
+<td>Render a listing as an App Store and Google Play mockup, with New/Current variants and multi-locale.</td>
+<td>EP01</td>
+<td>Must</td>
+</tr>
+<tr>
+<td>FR-02</td>
+<td>Edit metadata in place, edit raw JSON, and add/auto-classify screenshots.</td>
+<td>EP01</td>
+<td>Must</td>
+</tr>
+<tr>
+<td>FR-03</td>
+<td>Sync the live listing (metadata + screenshots) from ASC + Play into Current.</td>
+<td>EP02</td>
+<td>Must</td>
+</tr>
+<tr>
+<td>FR-04</td>
+<td>Diff Current → New for text and screenshots with badges + lightbox.</td>
+<td>EP03</td>
+<td>Must</td>
+</tr>
+<tr>
+<td>FR-05</td>
+<td>Audit each field against store character limits per locale, live.</td>
+<td>EP04</td>
+<td>Must</td>
+</tr>
+<tr>
+<td>FR-06</td>
+<td>Provide a persisted first-release checklist with progress.</td>
+<td>EP05</td>
+<td>Should</td>
+</tr>
+<tr>
+<td>FR-07</td>
+<td>Test ASC + Play credentials without saving; import/export listing + self-contained <code>.env</code>.</td>
+<td>EP06</td>
+<td>Must</td>
+</tr>
+<tr>
+<td>FR-08</td>
+<td>Mirror and remote-control a connected Android device and iPhone; preview web/media/markdown.</td>
+<td>EP07</td>
+<td>Should</td>
+</tr>
+<tr>
+<td>FR-09</td>
+<td>Ship a signed/notarized desktop app (macOS/Windows) with auto-update and seeded app data.</td>
+<td>EP08</td>
+<td>Should</td>
+</tr>
+</tbody></table>
+<p>---</p>
+<h2 id="4-user-stories">4. User Stories</h2>
+<p>Authoritative source files in <code>resources/user-story/</code>. Summary index:</p>
+<table><tbody>
+<tr>
+<td>Story</td>
+<td>Title</td>
+<td>Epic</td>
+</tr>
+<tr>
+<td>EP01.US001</td>
+<td>Preview a listing on both stores</td>
+<td>EP01</td>
+</tr>
+<tr>
+<td>EP01.US002</td>
+<td>Switch between New and Current variants</td>
+<td>EP01</td>
+</tr>
+<tr>
+<td>EP01.US003</td>
+<td>Edit metadata and assets in place</td>
+<td>EP01</td>
+</tr>
+<tr>
+<td>EP01.US004</td>
+<td>View the listing per locale</td>
+<td>EP01</td>
+</tr>
+<tr>
+<td>EP01.US005</td>
+<td>Dark mode and multi-language UI</td>
+<td>EP01</td>
+</tr>
+<tr>
+<td>EP02.US001</td>
+<td>Sync the live App Store listing</td>
+<td>EP02</td>
+</tr>
+<tr>
+<td>EP02.US002</td>
+<td>Sync the live Google Play listing</td>
+<td>EP02</td>
+</tr>
+<tr>
+<td>EP02.US003</td>
+<td>See a clear sync result</td>
+<td>EP02</td>
+</tr>
+<tr>
+<td>EP02.US004</td>
+<td>Keep credentials on the machine</td>
+<td>EP02</td>
+</tr>
+<tr>
+<td>EP03.US001</td>
+<td>Diff metadata field-by-field</td>
+<td>EP03</td>
+</tr>
+<tr>
+<td>EP03.US002</td>
+<td>Diff screenshots slot-by-slot</td>
+<td>EP03</td>
+</tr>
+<tr>
+<td>EP03.US003</td>
+<td>Summarize and dismiss</td>
+<td>EP03</td>
+</tr>
+<tr>
+<td>EP04.US001</td>
+<td>Audit field lengths against store limits</td>
+<td>EP04</td>
+</tr>
+<tr>
+<td>EP04.US002</td>
+<td>See counts live while editing</td>
+<td>EP04</td>
+</tr>
+<tr>
+<td>EP04.US003</td>
+<td>Catch empty required fields</td>
+<td>EP04</td>
+</tr>
+<tr>
+<td>EP05.US001</td>
+<td>Work through a first-submission checklist</td>
+<td>EP05</td>
+</tr>
+<tr>
+<td>EP05.US002</td>
+<td>Track progress</td>
+<td>EP05</td>
+</tr>
+<tr>
+<td>EP05.US003</td>
+<td>Verify required assets and declarations</td>
+<td>EP05</td>
+</tr>
+<tr>
+<td>EP06.US001</td>
+<td>Verify API keys without saving</td>
+<td>EP06</td>
+</tr>
+<tr>
+<td>EP06.US002</td>
+<td>Import a listing or credentials</td>
+<td>EP06</td>
+</tr>
+<tr>
+<td>EP06.US003</td>
+<td>Export a self-contained config</td>
+<td>EP06</td>
+</tr>
+<tr>
+<td>EP07.US001</td>
+<td>Mirror and control an Android device</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>EP07.US002</td>
+<td>Mirror and control an iPhone</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>EP07.US003</td>
+<td>Preview web, media, and markdown</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>EP08.US001</td>
+<td>Install and launch a native app</td>
+<td>EP08</td>
+</tr>
+<tr>
+<td>EP08.US002</td>
+<td>Isolated, seeded app data</td>
+<td>EP08</td>
+</tr>
+<tr>
+<td>EP08.US003</td>
+<td>Receive automatic updates</td>
+<td>EP08</td>
+</tr>
+<tr>
+<td>EP08.US004</td>
+<td>Build and sign from source</td>
+<td>EP08</td>
+</tr>
+</tbody></table>
+<p>---</p>
+<h2 id="5-use-cases">5. Use Cases</h2>
+<h3 id="uc-01-prepare-and-verify-a-release-primary-flow">UC-01 Prepare and verify a release (primary flow)</h3>
+<p><strong>Actor:</strong> Release manager · <strong>Pre:</strong> repo cloned, server running.</p>
+<ol>
+<li>Add credentials → <strong>Test keys</strong> (EP06).</li>
+<li><strong>Sync</strong> the Current listing (EP02).</li>
+<li><strong>Try template</strong> or drag screenshots + edit text to build New (EP01).</li>
+<li>Toggle <strong>ASO checks</strong> and trim over-limit fields (EP04).</li>
+<li><strong>Review Diff</strong> Current → New per locale (EP03).</li>
+<li>Run the <strong>Release checklist</strong> (EP05).</li>
+<li><strong>Export</strong> JSON / <code>.env</code> for handoff (EP06).</li>
+</ol>
+<p><strong>Post:</strong> a verified New listing ready to paste into ASC / Play Console.</p>
+<h3 id="uc-02-verify-credentials-only">UC-02 Verify credentials only</h3>
+<p><strong>Actor:</strong> Developer. Paste <code>.env</code> → <strong>Test keys</strong> → per-store ✓/✗ → optionally <strong>Save .env</strong> (EP06).</p>
+<h3 id="uc-03-qa-on-a-real-device">UC-03 QA on a real device</h3>
+<p><strong>Actor:</strong> Designer. Open preview panel → pick Android/iPhone → <strong>Live</strong> → tap/swipe and capture (EP07).</p>
+<h3 id="uc-04-install-and-auto-update-the-desktop-app">UC-04 Install and auto-update the desktop app</h3>
+<p><strong>Actor:</strong> Any user. Install signed <code>.dmg</code>/installer → launch → <strong>File ▸ Check for Updates</strong> (EP08).</p>
+<p>---</p>
+<h2 id="6-screens-ui-surfaces">6. Screens / UI Surfaces</h2>
+<p>The ASCII layout documents below are injected from <code>resources/screens/*.md</code> by <code>resources/srs.sh</code>.</p>
+<p>---</p>
+<h3 id="store-listing-preview-playground">Store Listing Preview (Playground)</h3>
+<p>Source: <code>resources/screens/ep01-store-preview-screen.md</code></p>
+<h4 id="layout-mode-split-panel-sticky-control-bar-store-mockup">Layout Mode: Split-panel (sticky control bar + store mockup)</h4>
+<pre><code>
+┌────────────────────────────────────────────────────────────────────────┐
+│ Store Listing Preview · App Store + Google Play         [☾ theme] [lang]│
+├────────────────────────────────────────────────────────────────────────┤
+│ [App Store][Google Play]   [New ⬆][Current]   en-US│vi│ko│…             │
+│ [📁 Open][✨ Try template][⟳ Sync][Review Diff]                          │
+│ [ASO checks][Edit on page][Release checklist][Edit JSON][⤓ Export][⤒ Import][Load images…] │
+│ ⤵ or drag images / a folder anywhere                                     │
+├────────────────────────────────────────────────────────────────────────┤
+│  APP STORE MODE                          │  GOOGLE PLAY MODE             │
+│  ┌────────────────────────────────────┐  │  ┌─────────────────────────┐  │
+│  │ [icon] App Name            [ GET ] │  │  │ Apps ▸                  │  │
+│  │        Subtitle (≤30)         [↗] │  │  │ [icon] App Title (≤30)  │  │
+│  │ Free · iPhone &amp; iPad               │  │  │ Developer · ★ · 50K+    │  │
+│  ├────────────────────────────────────┤  │  │ [ Install ]             │  │
+│  │ ★★★★★ │ 4+ │ #1 │ Dev │ EN │ v1.4 │  │  ├─────────────────────────┤  │
+│  ├────────────────────────────────────┤  │  │ [Phone (5)][Tablet (2)] │  │
+│  │ iPhone  ▸ [▢ ▢ ▢ ▢] scroll ...    │  │  │ [▸ screenshots] ...     │  │
+│  │ iPad    ▸ [▢ ▢ ▢] ...              │  │  │ About this app …        │  │
+│  │ Promotional text (≤170)            │  │  │ What's new …            │  │
+│  │ Description (≤4000) …              │  │  │ ┌ App icon ┐ ┌ Feature ┐ │  │
+│  │ What's New (v1.4) …               │  │  │ │ Uploaded │ │ 1024×500 │ │  │
+│  │ Keywords: [chip][chip][chip]       │  │  │ Package · short desc    │  │
+│  └────────────────────────────────────┘  │  └─────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="components">Components</h4>
+<ul>
+<li>Store toggle: switches App Store ↔ Google Play layout.</li>
+<li>Variant toggle: New (editable) ↔ Current (read-only/locked).</li>
+<li>Locale buttons: generated from <code>DATA.locales</code>; switch all copy + screenshots.</li>
+<li>Action bar: Open folder, Try template, Sync, Review Diff, ASO checks, Edit on page, Release checklist, Edit JSON, Export, Import, Load images.</li>
+<li>Screenshot galleries: iphone/ipad (App Store), phone/tablet sub-tabs (Play).</li>
+<li>Graphics block (Play): app icon + feature graphic with status pills.</li>
+</ul>
+<h4 id="states">States</h4>
+<ul>
+<li>Initial: empty placeholder listing, no overflow.</li>
+<li>Loaded: <code>listing.json</code> rendered.</li>
+<li>Editing: dashed outlines on <code>contenteditable</code> fields; live counters.</li>
+<li>Current: locked; drag-drop shows "Current is locked".</li>
+</ul>
+<h4 id="events">Events</h4>
+<ul>
+<li>StoreToggle → re-render mockup.</li>
+<li>VariantToggle → swap New/Current; lock when Current.</li>
+<li>LocaleSelect → re-render copy/screenshots/ASO.</li>
+<li>EditOnPage → enable contenteditable.</li>
+<li>DropImages → classify by name → aspect ratio → assign gallery.</li>
+</ul>
+<h4 id="srs-export">SRS Export</h4>
+<ul>
+<li><code>resources/srs.sh</code> renders this document inside <code>Screens / UI Surfaces</code>.</li>
+</ul>
+<h3 id="review-diff-current-new">Review Diff (Current → New)</h3>
+<p>Source: <code>resources/screens/ep03-review-diff-screen.md</code></p>
+<h4 id="layout-mode-tab-based-modal">Layout Mode: Tab-based modal</h4>
+<pre><code>
+┌──────────────────────────────────────────────────────────────┐
+│ Review changes — Current → New                          [✕]  │
+├──────────────────────────────────────────────────────────────┤
+│ [ Text &amp; metadata ] [ Screenshots ]                          │
+├──────────────────────────────────────────────────────────────┤
+│  ── App ───────────────────────────────────────────────────  │
+│  name            [CHG]  ~~Old name~~   →   New name           │
+│  subtitle        [ADD]                 →   New subtitle       │
+│  ── en-US ─────────────────────────────────────────────────  │
+│  keywords        [CHG]  ~~old,kw~~     →   new,kw             │
+│                                                              │
+│  (Screenshots tab)                                           │
+│  iPhone   Current 3 → New 4                                  │
+│   #1 [▢ cur] → [▢ new] [CHG]   #4 [ — ] → [▢ new] [ADD]      │
+├──────────────────────────────────────────────────────────────┤
+│ 4 text field(s) · 2 screenshot change(s) · Current → New     │
+│                                   [ Close ] [ Looks good ✓ ]  │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="components">Components</h4>
+<ul>
+<li>Tab bar: Text &amp; metadata | Screenshots.</li>
+<li>Text rows: field name + CHG/ADD/REM badge, old (red strikethrough) → new (green).</li>
+<li>Screenshot rows: per gallery, slot-aligned Current → New thumbnails with badges.</li>
+<li>Fullscreen lightbox: click a thumbnail to zoom (Esc / backdrop closes).</li>
+<li>Footer: change summary + Close / Looks good.</li>
+</ul>
+<h4 id="states">States</h4>
+<ul>
+<li>No Current synced: all New screenshots show ADD.</li>
+<li>Mixed: CHG / ADD / REM badges per row.</li>
+</ul>
+<h4 id="events">Events</h4>
+<ul>
+<li>TabSwitch → show text or screenshot pane.</li>
+<li>ThumbClick → open lightbox.</li>
+<li>Close / LooksGood → dismiss modal.</li>
+</ul>
+<h4 id="srs-export">SRS Export</h4>
+<ul>
+<li><code>resources/srs.sh</code> renders this document inside <code>Screens / UI Surfaces</code>.</li>
+</ul>
+<h3 id="store-seo-aso-audit-panel">Store SEO / ASO Audit Panel</h3>
+<p>Source: <code>resources/screens/ep04-aso-audit-screen.md</code></p>
+<h4 id="layout-mode-side-panel-toggle">Layout Mode: Side panel (toggle)</h4>
+<pre><code>
+┌───────────────────────────────────────────────┐
+│ ASO checks · App Store · en-US           [✕]  │
+├───────────────────────────────────────────────┤
+│ name              "PulseFit: Habit Coach"  21/30 ✓│
+│ subtitle          "Workouts, habits …"     28/30 ✓│
+│ keywords          "fitness,workout,…"     104/100 ✗│
+│ promotionalText   "Build daily habits…"    96/170 ✓│
+│ description        …                      812/4000 ✓│
+│ whatsNew           …                      140/4000 ✓│
+│ Bundle ID         `com.demo.pulsefit`             │
+├───────────────────────────────────────────────┤
+│ (Google Play)                                  │
+│ title             "PulseFit: Habit Coach"  21/30 ✓│
+│ shortDescription  "Guided workouts…"       58/80 ✓│
+│ fullDescription    …                      900/4000 ✓│
+│ changelog          …                      120/500 ✓│
+│ Package           `com.demo.pulsefit`             │
+└───────────────────────────────────────────────┘
+</code></pre>
+<h4 id="components">Components</h4>
+<ul>
+<li>Per-field row: label, value preview, count badge (used/limit).</li>
+<li>Green badge ≤ limit; red badge &gt; limit; empty-required flag.</li>
+<li>Reference codes: bundle id (iOS) / package (Android).</li>
+</ul>
+<h4 id="states">States</h4>
+<ul>
+<li>Within limits: all green.</li>
+<li>Over limit: red badge on the offending field.</li>
+<li>Empty required: distinct flag.</li>
+</ul>
+<h4 id="events">Events</h4>
+<ul>
+<li>ToggleAso → show/hide panel.</li>
+<li>FieldEdit → <code>updateAso()</code> re-render badges live.</li>
+<li>LocaleSwitch / StoreSwitch → re-audit.</li>
+</ul>
+<h4 id="srs-export">SRS Export</h4>
+<ul>
+<li><code>resources/srs.sh</code> renders this document inside <code>Screens / UI Surfaces</code>.</li>
+</ul>
+<h3 id="first-release-checklist">First-Release Checklist</h3>
+<p>Source: <code>resources/screens/ep05-release-checklist-screen.md</code></p>
+<h4 id="layout-mode-full-screen-modal-grouped">Layout Mode: Full-screen modal (grouped)</h4>
+<pre><code>
+┌──────────────────────────────────────────────────────────────┐
+│ First-release checklist                  [Reset]        [✕]  │
+│ ████████████████░░░░░░░░░░░░  62%                            │
+│ Tags: [WEB UI]=console  [API]=scriptable  [DECLARATION]=true │
+├──────────────────────────────────────────────────────────────┤
+│ ▸ Accounts &amp; signing                                        │
+│   [x] Apple Developer Program active            [WEB UI]     │
+│   [x] App Store Connect API key (.p8 path)      [API]        │
+│   [ ] Google Play service account (Release Mgr) [API]        │
+│ ▸ App records (one-time)                                     │
+│   [x] ASC app record created                                │
+│ ▸ Listing content                                           │
+│   [ ] iOS screenshots 6.9"/6.7", iPad 12.9"     [WEB UI]     │
+│   [x] Icon 1024/512 no alpha · feature 1024×500             │
+│ ▸ Build · ▸ Version requirements · ▸ Submit                  │
+│ ▸ Known first-submission rejections                         │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="components">Components</h4>
+<ul>
+<li>Progress bar: live percent of checked items.</li>
+<li>Groups: Accounts &amp; signing, App records, Listing content, Build, App Store version requirements, Submit, Known rejections.</li>
+<li>Item: checkbox + label + tag (WEB UI / API / DECLARATION).</li>
+<li>Reset: clears all + localStorage.</li>
+</ul>
+<h4 id="states">States</h4>
+<ul>
+<li>Restored: checkbox state from <code>store-release-checklist-v1</code>.</li>
+<li>In progress: percent &lt; 100.</li>
+<li>Complete: percent = 100.</li>
+</ul>
+<h4 id="events">Events</h4>
+<ul>
+<li>ToggleItem → recompute percent → persist.</li>
+<li>Reset → clear all + storage.</li>
+</ul>
+<h4 id="srs-export">SRS Export</h4>
+<ul>
+<li><code>resources/srs.sh</code> renders this document inside <code>Screens / UI Surfaces</code>.</li>
+</ul>
+<h3 id="credentials-import-export">Credentials Import / Export</h3>
+<p>Source: <code>resources/screens/ep06-credentials-screen.md</code></p>
+<h4 id="layout-mode-tab-based-modal-export-import">Layout Mode: Tab-based modal (Export &amp; Import)</h4>
+<pre><code>
+┌──────────────────────────────────────────────────────────────┐
+│ Export config                                          [✕]   │
+├──────────────────────────────────────────────────────────────┤
+│ [ Listing JSON ] [ Env · Sync API ]                          │
+├──────────────────────────────────────────────────────────────┤
+│ ⚠️ CONTAINS REAL CREDENTIALS — keep private                  │
+│ ┌──────────────────────────────────────────────────────────┐ │
+│ │ ASC_KEY_ID=...                                           │ │
+│ │ ASC_ISSUER_ID=...                                        │ │
+│ │ ASC_KEY_P8_B64=...                                       │ │
+│ │ BUNDLE_ID=...                                            │ │
+│ │ PLAYSTORE_PACKAGE_NAME=...                               │ │
+│ │ PLAYSTORE_SERVICE_ACCOUNT_JSON_B64=...                   │ │
+│ └──────────────────────────────────────────────────────────┘ │
+│              [ 💾 Save .env ]  [ 🔌 Test keys ]              │
+├──────────────────────────────────────────────────────────────┤
+│ Test result:  ✓ App Store Connect: app found                 │
+│               ✓ Google Play: sa@project.iam … edit ok        │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="components">Components</h4>
+<ul>
+<li>Tabs: Listing JSON (copy / save .json) · Env · Sync API.</li>
+<li>Env textarea: editable on Import, read-only export shows current server env.</li>
+<li>Buttons: Save .env (POST /api/env), Test keys (POST /api/test), Copy, Choose file, Load → Current.</li>
+<li>Result area: per-store ✓ (green) / ✗ (red) + detail.</li>
+</ul>
+<h4 id="states">States</h4>
+<ul>
+<li>Export: prefilled from <code>GET /api/env</code> (sync keys only, base64-inlined).</li>
+<li>Import: paste/pick; Save refuses overwrite unless <code>?force=1</code>.</li>
+<li>Tested: per-store ok/detail rendered.</li>
+</ul>
+<h4 id="events">Events</h4>
+<ul>
+<li>TestKeys → POST /api/test → render results.</li>
+<li>SaveEnv → POST /api/env.</li>
+<li>LoadToCurrent → set parsed JSON as read-only Current.</li>
+</ul>
+<h4 id="srs-export">SRS Export</h4>
+<ul>
+<li><code>resources/srs.sh</code> renders this document inside <code>Screens / UI Surfaces</code>.</li>
+</ul>
+<h3 id="device-mirror-preview-panel">Device Mirror &amp; Preview Panel</h3>
+<p>Source: <code>resources/screens/ep07-device-mirror-screen.md</code></p>
+<h4 id="layout-mode-right-side-rail-slide-out-panel">Layout Mode: Right-side rail + slide-out panel</h4>
+<pre><code>
+┌──────────────────────────────────────────────┬────┐
+│  Preview panel (resizable, ≥320px)      [↗][✕]│ ▐  │
+│ ┌──────────────────────────────────────────┐ │ 📱 │
+│ │ Android ▾  [⟳][▶ Live][⚡ scrcpy]         │ │ 🍎 │
+│ │ ┌──────────────────────────────────────┐ │ │    │
+│ │ │                                      │ │ │ ✕  │
+│ │ │      [ live device screen ]          │ │ │    │
+│ │ │       tap ● swipe ╱                   │ │ └────┘
+│ │ └──────────────────────────────────────┘ │ │
+│ │ [▭ Recents][○ Home][◁ Back][🔉][🔊][⏻]   │ │
+│ │ [ type text… ] [Send][⏎][⌫]              │ │
+│ │ connected · 12.5 fps                      │ │
+│ └──────────────────────────────────────────┘ │
+│ Tabs also: 🍎 iPhone (WDA MJPEG) · Web · Media · Markdown │
+└──────────────────────────────────────────────┴────┘
+</code></pre>
+<h4 id="components">Components</h4>
+<ul>
+<li>Rail: 📱 Android · 🍎 iPhone · Web · Media · Markdown · ✕ close.</li>
+<li>Device selector + Refresh/Scan; Live toggle; scrcpy (Android) / Start WDA (iOS).</li>
+<li>Mirror area: screencap/MJPEG with tap ripple + swipe trail; FPS readout.</li>
+<li>Navigator buttons + text input.</li>
+<li>Media/Markdown tabs render local files via <code>/api/preview-file</code>.</li>
+</ul>
+<h4 id="states">States</h4>
+<ul>
+<li>Scanning: "scanning…" until devices resolve.</li>
+<li>Connected: model + fps / resolution shown.</li>
+<li>Tool missing: "adb missing" / "WDA not running" / setup helper.</li>
+</ul>
+<h4 id="events">Events</h4>
+<ul>
+<li>Refresh/Scan → list devices.</li>
+<li>Live → start screencap poll / MJPEG stream.</li>
+<li>TapMirror → POST input (tap/swipe) with feedback.</li>
+<li>NavButton / SendText → key/button/text event.</li>
+</ul>
+<h4 id="srs-export">SRS Export</h4>
+<ul>
+<li><code>resources/srs.sh</code> renders this document inside <code>Screens / UI Surfaces</code>.</li>
+</ul>
+<h2 id="7-data-model">7. Data Model</h2>
+<pre class="mermaid">
+erDiagram
+  LISTING ||--|| APP : has
+  LISTING ||--o{ LOCALE_ENTRY : contains
+  LISTING ||--o{ SCREENSHOT : contains
+  LISTING ||--|| GRAPHICS : has
+  LISTING ||--|| LIMITS : has
+  APP {
+    string name
+    string iosBundleId
+    string androidPackage
+    string versionName
+    string developer
+    string defaultLocale
+  }
+  LOCALE_ENTRY {
+    string displayName
+    string appstore_name
+    string appstore_subtitle
+    string appstore_keywords
+    string googleplay_title
+    string fullDescription
+    string whatsNew
+  }
+  SCREENSHOT {
+    string gallery
+    string file
+    string label
+    string size
+  }
+  GRAPHICS {
+    string appIcon_file
+    string featureGraphic_file
+  }
+  LIMITS {
+    int appstore_name
+    int googleplay_shortDescription
+  }
+</pre>
+<p>Field-length limits (<code>DATA.limits</code>):</p>
+<table><tbody>
+<tr>
+<td>Store</td>
+<td>Field</td>
+<td>Limit</td>
+</tr>
+<tr>
+<td>App Store</td>
+<td>name</td>
+<td>30</td>
+</tr>
+<tr>
+<td>App Store</td>
+<td>subtitle</td>
+<td>30</td>
+</tr>
+<tr>
+<td>App Store</td>
+<td>keywords</td>
+<td>100</td>
+</tr>
+<tr>
+<td>App Store</td>
+<td>promotionalText</td>
+<td>170</td>
+</tr>
+<tr>
+<td>App Store</td>
+<td>description</td>
+<td>4000</td>
+</tr>
+<tr>
+<td>App Store</td>
+<td>whatsNew</td>
+<td>4000</td>
+</tr>
+<tr>
+<td>Google Play</td>
+<td>title</td>
+<td>30</td>
+</tr>
+<tr>
+<td>Google Play</td>
+<td>shortDescription</td>
+<td>80</td>
+</tr>
+<tr>
+<td>Google Play</td>
+<td>fullDescription</td>
+<td>4000</td>
+</tr>
+<tr>
+<td>Google Play</td>
+<td>changelog</td>
+<td>500</td>
+</tr>
+</tbody></table>
+<p>Persisted artifacts: <code>listing.json</code> (New), <code>listing-current.json</code> (Current), <code>listing-template.json</code> (demo), <code>assets/{template,new,current}/</code>, <code>.env</code>.</p>
+<p>---</p>
+<h2 id="8-external-interfaces-api">8. External Interfaces (API)</h2>
+<p>Backend on <code>127.0.0.1</code> (from <code>server/http_app.py</code>):</p>
+<table><tbody>
+<tr>
+<td>Method</td>
+<td>Endpoint</td>
+<td>Purpose</td>
+<td>Epic</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/sync</code></td>
+<td>Pull live ASC + Play listing → <code>listing-current.json</code></td>
+<td>EP02</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/scan</code></td>
+<td>Scan project folder (creds/assets/listings)</td>
+<td>EP01</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/open</code></td>
+<td>Switch active project folder</td>
+<td>EP01</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/apply-template</code></td>
+<td>Copy demo assets → New</td>
+<td>EP01</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/env</code></td>
+<td>Export sync-only <code>.env</code> (base64-inlined)</td>
+<td>EP06</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/env</code></td>
+<td>Save imported <code>.env</code> (first-time / <code>?force=1</code>)</td>
+<td>EP06</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/test</code></td>
+<td>Verify ASC + Play creds (no save)</td>
+<td>EP06</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/adb/devices</code></td>
+<td>List Android devices</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/adb/screen</code></td>
+<td>Android screencap (PNG)</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/adb/input</code></td>
+<td>Android tap/swipe/text/key</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/adb/scrcpy</code></td>
+<td>Launch native scrcpy</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/wda/devices</code></td>
+<td>List iOS devices</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/wda/status</code></td>
+<td>WDA status</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/wda/screen</code></td>
+<td>iOS screenshot (PNG)</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/wda/mjpeg</code></td>
+<td>iOS MJPEG stream</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/wda/input</code></td>
+<td>iOS tap/swipe/text/button/lock</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/wda/launch</code></td>
+<td>Launch WDA via xcodebuild</td>
+<td>EP07</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/preview-file</code></td>
+<td>Serve local media/markdown</td>
+<td>EP07</td>
+</tr>
+</tbody></table>
+<p>---</p>
+<h2 id="9-non-functional-requirements">9. Non-Functional Requirements</h2>
+<table><tbody>
+<tr>
+<td>ID</td>
+<td>Category</td>
+<td>Requirement</td>
+</tr>
+<tr>
+<td>NFR-01</td>
+<td>Security</td>
+<td>Backend binds <code>127.0.0.1</code> only; credentials never leave the device; only <code>SYNC_KEYS</code> are exportable (no signing/Firebase secrets).</td>
+</tr>
+<tr>
+<td>NFR-02</td>
+<td>Privacy</td>
+<td><code>/api/test</code> never persists; <code>/api/env</code> POST refuses to overwrite without <code>?force=1</code>; <code>.env</code>, <code>assets/new</code>, <code>assets/current</code> are gitignored.</td>
+</tr>
+<tr>
+<td>NFR-03</td>
+<td>Usability</td>
+<td>Preview works offline with no keys; dark theme + 5-language landing (en/vi/ko/ar-RTL/ja); no flash of wrong theme.</td>
+</tr>
+<tr>
+<td>NFR-04</td>
+<td>Performance</td>
+<td>Inline edits update without full re-render (caret preserved); screenshots lazy-load; device mirror reports FPS; MJPEG with polling fallback.</td>
+</tr>
+<tr>
+<td>NFR-05</td>
+<td>Portability</td>
+<td>Single-file frontend, stdlib-based backend, PyInstaller sidecar; desktop on macOS + Windows.</td>
+</tr>
+<tr>
+<td>NFR-06</td>
+<td>Reliability</td>
+<td>Missing external tools (adb/scrcpy/iproxy/xcodebuild) and missing creds degrade gracefully with readable status.</td>
+</tr>
+<tr>
+<td>NFR-07</td>
+<td>Distribution</td>
+<td>Desktop artifacts are signed + notarized and auto-update via a cryptographically verified <code>latest.json</code>.</td>
+</tr>
+<tr>
+<td>NFR-08</td>
+<td>Maintainability</td>
+<td>Backend split by concern under <code>server/</code>; docs in Astro; demo assets regenerable via <code>gen-dummy.mjs</code>.</td>
+</tr>
+</tbody></table>
+<p>---</p>
+<h2 id="10-risks">10. Risks</h2>
+<table><tbody>
+<tr>
+<td>Risk</td>
+<td>Impact</td>
+<td>Mitigation</td>
+</tr>
+<tr>
+<td>ASC JWT / key misconfig</td>
+<td>Sync fails</td>
+<td><code>/api/test</code> dry-run before save; readable error details.</td>
+</tr>
+<tr>
+<td>Play edit session left open</td>
+<td>Stuck edits</td>
+<td>Test + sync always delete the edit session.</td>
+</tr>
+<tr>
+<td>Credential leakage via export</td>
+<td>Secret exposure</td>
+<td>Export limited to <code>SYNC_KEYS</code>; explicit "keep private" warning; localhost-only.</td>
+</tr>
+<tr>
+<td>iOS mirroring setup complexity</td>
+<td>Feature unusable</td>
+<td>One-click WDA launch + setup helper with go-ios commands.</td>
+</tr>
+<tr>
+<td>Static Pages build has no backend</td>
+<td>Sync/Test appear broken</td>
+<td>Docs state preview-only; full tool requires <code>run.sh</code>/desktop.</td>
+</tr>
+<tr>
+<td>Desktop update signature mismatch</td>
+<td>Failed/blocked update</td>
+<td>Tauri updater verifies signature before install.</td>
+</tr>
+</tbody></table>
+<p>---</p>
+<h2 id="11-traceability">11. Traceability</h2>
+<table><tbody>
+<tr>
+<td>Requirement</td>
+<td>Epic</td>
+<td>User stories</td>
+<td>Technical design</td>
+<td>Screen</td>
+<td>Verification</td>
+</tr>
+<tr>
+<td>FR-01</td>
+<td>EP01</td>
+<td>US001–US002,004,005</td>
+<td><code>technial-design/ep01-store-preview.md</code></td>
+<td><code>screens/ep01-store-preview-screen.md</code></td>
+<td><code>./run.sh</code> → toggle stores/variants/locales</td>
+</tr>
+<tr>
+<td>FR-02</td>
+<td>EP01</td>
+<td>US003</td>
+<td>ep01</td>
+<td>ep01 screen</td>
+<td>drag images, edit fields, Download listing.json</td>
+</tr>
+<tr>
+<td>FR-03</td>
+<td>EP02</td>
+<td>US001–US004</td>
+<td>ep02</td>
+<td>ep01 screen (⟳ Sync)</td>
+<td><code>curl /api/sync</code></td>
+</tr>
+<tr>
+<td>FR-04</td>
+<td>EP03</td>
+<td>US001–US003</td>
+<td>ep03</td>
+<td>ep03 screen</td>
+<td>Review Diff after Sync + edit</td>
+</tr>
+<tr>
+<td>FR-05</td>
+<td>EP04</td>
+<td>US001–US003</td>
+<td>ep04</td>
+<td>ep04 screen</td>
+<td>toggle ASO, type past a limit</td>
+</tr>
+<tr>
+<td>FR-06</td>
+<td>EP05</td>
+<td>US001–US003</td>
+<td>ep05</td>
+<td>ep05 screen</td>
+<td>tick items, reload (persistence)</td>
+</tr>
+<tr>
+<td>FR-07</td>
+<td>EP06</td>
+<td>US001–US003</td>
+<td>ep06</td>
+<td>ep06 screen</td>
+<td><code>curl /api/test</code>, <code>/api/env</code></td>
+</tr>
+<tr>
+<td>FR-08</td>
+<td>EP07</td>
+<td>US001–US003</td>
+<td>ep07</td>
+<td>ep07 screen</td>
+<td><code>curl /api/adb/devices</code>, <code>/api/wda/devices</code></td>
+</tr>
+<tr>
+<td>FR-09</td>
+<td>EP08</td>
+<td>US001–US004</td>
+<td>ep08</td>
+<td>(native frame of ep01)</td>
+<td><code>./run_desktop.sh</code>, <code>./appdist.sh</code></td>
+</tr>
+</tbody></table>
+<p>---</p>
+<h2 id="12-build-run">12. Build &amp; Run</h2>
+<pre><code>
+# Local full site (landing + playground + docs + /api/*)
+./run.sh
+./run.sh --build      # force-rebuild docs
+
+# Backend only
+python3 serve.py 8092
+
+# Desktop app
+cd desktop &amp;&amp; bash scripts/setup-prereqs.sh &amp;&amp; ./run_desktop.sh
+
+# Regenerate this SRS
+./resources/srs.sh
+</code></pre>
+    </section>
+    <section id="flow-view" hidden>
+<h2>Screen Flow</h2>
+<p class="meta">Each screen shows its real layout; arrows are the navigation events that move between screens.</p>
+<div class="flow-canvas">
+<div class="flow-screen"><div class="scr-cap">First-Release Checklist</div><pre>┌──────────────────────────────────────────────────────────────┐
+│ First-release checklist                  [Reset]        [✕]  │
+│ ████████████████░░░░░░░░░░░░  62%                            │
+│ Tags: [WEB UI]=console  [API]=scriptable  [DECLARATION]=true │
+├──────────────────────────────────────────────────────────────┤
+│ ▸ Accounts &amp; signing                                        │
+│   [x] Apple Developer Program active            [WEB UI]     │
+│   [x] App Store Connect API key (.p8 path)      [API]        │
+│   [ ] Google Play service account (Release Mgr) [API]        │
+│ ▸ App records (one-time)                                     │
+│   [x] ASC app record created                                │
+│ ▸ Listing content                                           │
+│   [ ] iOS screenshots 6.9"/6.7", iPad 12.9"     [WEB UI]     │
+│   [x] Icon 1024/512 no alpha · feature 1024×500             │
+│ ▸ Build · ▸ Version requirements · ▸ Submit                  │
+│ ▸ Known first-submission rejections                         │
+└──────────────────────────────────────────────────────────────┘</pre></div>
+<div class="flow-connector">
+<div class="flow-arrow back"><span class="line">&middot;&middot;&middot;</span></div>
+</div>
+<div class="flow-screen"><div class="scr-cap">Store Listing Preview (Playground)</div><pre>┌────────────────────────────────────────────────────────────────────────┐
+│ Store Listing Preview · App Store + Google Play         [☾ theme] [lang]│
+├────────────────────────────────────────────────────────────────────────┤
+│ [App Store][Google Play]   [New ⬆][Current]   en-US│vi│ko│…             │
+│ [📁 Open][✨ Try template][⟳ Sync][Review Diff]                          │
+│ [ASO checks][Edit on page][Release checklist][Edit JSON][⤓ Export][⤒ Import][Load images…] │
+│ ⤵ or drag images / a folder anywhere                                     │
+├────────────────────────────────────────────────────────────────────────┤
+│  APP STORE MODE                          │  GOOGLE PLAY MODE             │
+│  ┌────────────────────────────────────┐  │  ┌─────────────────────────┐  │
+│  │ [icon] App Name            [ GET ] │  │  │ Apps ▸                  │  │
+│  │        Subtitle (≤30)         [↗] │  │  │ [icon] App Title (≤30)  │  │
+│  │ Free · iPhone &amp; iPad               │  │  │ Developer · ★ · 50K+    │  │
+│  ├────────────────────────────────────┤  │  │ [ Install ]             │  │
+│  │ ★★★★★ │ 4+ │ #1 │ Dev │ EN │ v1.4 │  │  ├─────────────────────────┤  │
+│  ├────────────────────────────────────┤  │  │ [Phone (5)][Tablet (2)] │  │
+│  │ iPhone  ▸ [▢ ▢ ▢ ▢] scroll ...    │  │  │ [▸ screenshots] ...     │  │
+│  │ iPad    ▸ [▢ ▢ ▢] ...              │  │  │ About this app …        │  │
+│  │ Promotional text (≤170)            │  │  │ What's new …            │  │
+│  │ Description (≤4000) …              │  │  │ ┌ App icon ┐ ┌ Feature ┐ │  │
+│  │ What's New (v1.4) …               │  │  │ │ Uploaded │ │ 1024×500 │ │  │
+│  │ Keywords: [chip][chip][chip]       │  │  │ Package · short desc    │  │
+│  └────────────────────────────────────┘  │  └─────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────┘</pre></div>
+<div class="flow-connector">
+<div class="flow-arrow fwd"><span class="evt">VariantToggle</span><span class="line">&rarr;</span></div>
+</div>
+<div class="flow-screen"><div class="scr-cap">Review Diff (Current → New)</div><pre>┌──────────────────────────────────────────────────────────────┐
+│ Review changes — Current → New                          [✕]  │
+├──────────────────────────────────────────────────────────────┤
+│ [ Text &amp; metadata ] [ Screenshots ]                          │
+├──────────────────────────────────────────────────────────────┤
+│  ── App ───────────────────────────────────────────────────  │
+│  name            [CHG]  ~~Old name~~   →   New name           │
+│  subtitle        [ADD]                 →   New subtitle       │
+│  ── en-US ─────────────────────────────────────────────────  │
+│  keywords        [CHG]  ~~old,kw~~     →   new,kw             │
+│                                                              │
+│  (Screenshots tab)                                           │
+│  iPhone   Current 3 → New 4                                  │
+│   #1 [▢ cur] → [▢ new] [CHG]   #4 [ — ] → [▢ new] [ADD]      │
+├──────────────────────────────────────────────────────────────┤
+│ 4 text field(s) · 2 screenshot change(s) · Current → New     │
+│                                   [ Close ] [ Looks good ✓ ]  │
+└──────────────────────────────────────────────────────────────┘</pre></div>
+<div class="flow-connector">
+<div class="flow-arrow back"><span class="line">&larr;</span><span class="evt">LoadToCurrent</span></div>
+</div>
+<div class="flow-screen"><div class="scr-cap">Credentials Import / Export</div><pre>┌──────────────────────────────────────────────────────────────┐
+│ Export config                                          [✕]   │
+├──────────────────────────────────────────────────────────────┤
+│ [ Listing JSON ] [ Env · Sync API ]                          │
+├──────────────────────────────────────────────────────────────┤
+│ ⚠️ CONTAINS REAL CREDENTIALS — keep private                  │
+│ ┌──────────────────────────────────────────────────────────┐ │
+│ │ ASC_KEY_ID=...                                           │ │
+│ │ ASC_ISSUER_ID=...                                        │ │
+│ │ ASC_KEY_P8_B64=...                                       │ │
+│ │ BUNDLE_ID=...                                            │ │
+│ │ PLAYSTORE_PACKAGE_NAME=...                               │ │
+│ │ PLAYSTORE_SERVICE_ACCOUNT_JSON_B64=...                   │ │
+│ └──────────────────────────────────────────────────────────┘ │
+│              [ 💾 Save .env ]  [ 🔌 Test keys ]              │
+├──────────────────────────────────────────────────────────────┤
+│ Test result:  ✓ App Store Connect: app found                 │
+│               ✓ Google Play: sa@project.iam … edit ok        │
+└──────────────────────────────────────────────────────────────┘</pre></div>
+<div class="flow-connector">
+<div class="flow-arrow back"><span class="line">&middot;&middot;&middot;</span></div>
+</div>
+<div class="flow-screen"><div class="scr-cap">Store SEO / ASO Audit Panel</div><pre>┌───────────────────────────────────────────────┐
+│ ASO checks · App Store · en-US           [✕]  │
+├───────────────────────────────────────────────┤
+│ name              "PulseFit: Habit Coach"  21/30 ✓│
+│ subtitle          "Workouts, habits …"     28/30 ✓│
+│ keywords          "fitness,workout,…"     104/100 ✗│
+│ promotionalText   "Build daily habits…"    96/170 ✓│
+│ description        …                      812/4000 ✓│
+│ whatsNew           …                      140/4000 ✓│
+│ Bundle ID         `com.demo.pulsefit`             │
+├───────────────────────────────────────────────┤
+│ (Google Play)                                  │
+│ title             "PulseFit: Habit Coach"  21/30 ✓│
+│ shortDescription  "Guided workouts…"       58/80 ✓│
+│ fullDescription    …                      900/4000 ✓│
+│ changelog          …                      120/500 ✓│
+│ Package           `com.demo.pulsefit`             │
+└───────────────────────────────────────────────┘</pre></div>
+<div class="flow-connector">
+<div class="flow-arrow fwd"><span class="evt">ToggleAso</span><span class="line">&rarr;</span></div>
+</div>
+<div class="flow-screen"><div class="scr-cap">Device Mirror &amp; Preview Panel</div><pre>┌──────────────────────────────────────────────┬────┐
+│  Preview panel (resizable, ≥320px)      [↗][✕]│ ▐  │
+│ ┌──────────────────────────────────────────┐ │ 📱 │
+│ │ Android ▾  [⟳][▶ Live][⚡ scrcpy]         │ │ 🍎 │
+│ │ ┌──────────────────────────────────────┐ │ │    │
+│ │ │                                      │ │ │ ✕  │
+│ │ │      [ live device screen ]          │ │ │    │
+│ │ │       tap ● swipe ╱                   │ │ └────┘
+│ │ └──────────────────────────────────────┘ │ │
+│ │ [▭ Recents][○ Home][◁ Back][🔉][🔊][⏻]   │ │
+│ │ [ type text… ] [Send][⏎][⌫]              │ │
+│ │ connected · 12.5 fps                      │ │
+│ └──────────────────────────────────────────┘ │
+│ Tabs also: 🍎 iPhone (WDA MJPEG) · Web · Media · Markdown │
+└──────────────────────────────────────────────┴────┘</pre></div>
+</div>
+<div class="flow-legend">
+<span><span class="key">&rarr; Event</span> navigates to the next screen</span>
+<span><span class="key">&larr; Event</span> navigates back</span>
+</div>
+    </section>
+    <section id="board-view" hidden>
+<div class="board-head"><h2>Feature Board</h2><div class="layout-switch"><button type="button" data-layout="board" class="active">Board</button><button type="button" data-layout="list">List</button></div></div>
+<p class="meta">User stories across the sprint board. Click a card to see its full description and tasks.</p>
+<div class="board" id="board">
+<section class="board-col" data-status="backlog"><h3 class="board-col-title">Backlog <span class="col-count">0</span></h3><div class="board-cards"></div></section>
+<section class="board-col" data-status="todo"><h3 class="board-col-title">To Do (Sprint) <span class="col-count">0</span></h3><div class="board-cards"></div></section>
+<section class="board-col" data-status="inprogress"><h3 class="board-col-title">In Progress <span class="col-count">0</span></h3><div class="board-cards"></div></section>
+<section class="board-col" data-status="inreview"><h3 class="board-col-title">In Review <span class="col-count">0</span></h3><div class="board-cards"></div></section>
+<section class="board-col" data-status="done"><h3 class="board-col-title">Done <span class="col-count">0</span></h3><div class="board-cards"></div></section>
+</div>
+<div id="list-filter" hidden></div>
+<div id="board-list" hidden></div>
+<div id="story-pool" hidden>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP01.US001</span><span class="epic-tag">EP01: Store Listing Preview</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Preview a listing on both stores</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a developer, I want to see my listing rendered as a realistic App Store and Google Play mockup so that I know how it will look before I submit.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>A store toggle switches between **App Store** (iOS) and **Google Play** (Android) layouts.</span></li>
+<li class="task done"><span class="check">✓</span><span>App Store view shows: app icon, name (≤30), subtitle (≤30), GET button, metadata row (rating/age/category/developer/language/version), iPhone + iPad screenshot galleries, promotional text, description, what's new, keyword chips.</span></li>
+<li class="task done"><span class="check">✓</span><span>Google Play view shows: icon, title (≤30), developer, rating/downloads/age, Install button, phone + tablet screenshot sub-tabs, full description, what's new, app icon + feature graphic block, package id, short description.</span></li>
+<li class="task done"><span class="check">✓</span><span>Empty/placeholder state renders without overflow when no listing is loaded.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP01.US002</span><span class="epic-tag">EP01: Store Listing Preview</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Switch between New and Current variants</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a release manager, I want to flip between the **New** version I'm preparing and the **Current** version live on the store so that I always know which one I'm looking at.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>A variant toggle offers **New ⬆** and **Current**.</span></li>
+<li class="task done"><span class="check">✓</span><span>**Current** is read-only; attempting drag-drop shows a "Current is locked" message.</span></li>
+<li class="task done"><span class="check">✓</span><span>**New** is editable (text + screenshots).</span></li>
+<li class="task done"><span class="check">✓</span><span>The active variant label is visible in the control bar.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP01.US003</span><span class="epic-tag">EP01: Store Listing Preview</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Edit metadata and assets in place</h4>
+<div class="story-foot"><span class="task-count">5</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a developer, I want to edit text and swap screenshots directly on the preview so that I can iterate quickly.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>"Edit on page" enables <code>contenteditable</code> fields with dashed outlines; edits update the in-memory listing without losing caret position.</span></li>
+<li class="task done"><span class="check">✓</span><span>Character counters turn red when a field exceeds its store limit (live).</span></li>
+<li class="task done"><span class="check">✓</span><span>"Edit JSON" exposes the raw <code>listing.json</code> with Apply / Format / Download / Reset.</span></li>
+<li class="task done"><span class="check">✓</span><span>Images can be added via "Load images…", drag-and-drop (whole page or per slot), or a directory pick; they auto-classify into iphone/ipad/phone/tablet/icon/feature-graphic by filename hint then aspect ratio.</span></li>
+<li class="task done"><span class="check">✓</span><span>A toast confirms how many images landed in each gallery.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP01.US004</span><span class="epic-tag">EP01: Store Listing Preview</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">View the listing per locale</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a publisher with localized listings, I want to switch locale so that I can review each market's metadata and screenshots.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Locale buttons are generated from the listing's <code>locales</code>.</span></li>
+<li class="task done"><span class="check">✓</span><span>Switching locale updates all text, ASO counts, and (where present) screenshots live.</span></li>
+<li class="task done"><span class="check">✓</span><span>The selected locale persists across reloads.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP01.US005</span><span class="epic-tag">EP01: Store Listing Preview</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Use the tool in dark mode and multiple UI languages</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want a dark theme and a localized UI so that the tool fits my environment.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Theme toggle (light/dark) persists to <code>localStorage</code>.</span></li>
+<li class="task done"><span class="check">✓</span><span>Landing page UI is translatable to en, vi, ko, ar (RTL), ja.</span></li>
+<li class="task done"><span class="check">✓</span><span>No flash of the wrong theme on load.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP02.US001</span><span class="epic-tag">EP02: Store Sync</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Sync the live App Store listing</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a developer, I want to pull my current App Store listing so that I can diff and preview against what users see today.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>⟳ Sync authenticates to App Store Connect with a JWT minted from <code>ASC_KEY_ID</code> / <code>ASC_ISSUER_ID</code> / the <code>.p8</code> key (ES256, ~1100 s expiry).</span></li>
+<li class="task done"><span class="check">✓</span><span>The app is resolved by <code>BUNDLE_ID</code>; the latest <code>appStoreVersion</code> and per-locale <code>appStoreVersionLocalization</code> fields (name, subtitle, keywords, promotionalText, description, whatsNew) are fetched.</span></li>
+<li class="task done"><span class="check">✓</span><span>iPhone (<code>APP_IPHONE_67</code>) and iPad (<code>APP_IPAD_PRO_3GEN_129</code>) screenshots are downloaded to <code>assets/current/</code> and labeled with their original dimensions.</span></li>
+<li class="task done"><span class="check">✓</span><span>Results are written to <code>listing-current.json</code>.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP02.US002</span><span class="epic-tag">EP02: Store Sync</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Sync the live Google Play listing</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a developer, I want to pull my current Play listing so that the Current variant reflects production.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Sync authenticates with the Play service account JSON over the <code>androidpublisher</code> scope and opens an edit session.</span></li>
+<li class="task done"><span class="check">✓</span><span>All <code>listings</code> languages are fetched (title, shortDescription, fullDescription).</span></li>
+<li class="task done"><span class="check">✓</span><span><code>phoneScreenshots</code> for en-US are downloaded to <code>assets/current/</code>.</span></li>
+<li class="task done"><span class="check">✓</span><span>The edit session is discarded (read-only; no store changes).</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP02.US003</span><span class="epic-tag">EP02: Store Sync</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">See a clear sync result</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want feedback after syncing so that I know what was loaded.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>A toast reports counts, e.g. "Synced — App Store iPhone 3 / iPad 2, Play phone 5 (v1.4.0)".</span></li>
+<li class="task done"><span class="check">✓</span><span><code>GET /api/sync</code> returns <code>{ok, appstore:{iphone,ipad}, googleplay:{phone}, locales[], versionName}</code>.</span></li>
+<li class="task done"><span class="check">✓</span><span>Missing/invalid credentials produce a readable error, not a crash; preview-only use (no keys) still works.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP02.US004</span><span class="epic-tag">EP02: Store Sync</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Keep credentials on the machine</h4>
+<div class="story-foot"><span class="task-count">2</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a security-conscious user, I want sync to run locally so that my keys never leave my device.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>The server binds <code>127.0.0.1</code> only.</span></li>
+<li class="task done"><span class="check">✓</span><span>Credentials load from <code>{project}/.env</code> and optionally <code>{APP_DIST}/.env.prod</code>; nothing is uploaded to a third party.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP03.US001</span><span class="epic-tag">EP03: Review Diff</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Diff metadata field-by-field</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a release manager, I want a per-field text diff so that I can confirm exactly what is changing in this update.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>"Review Diff" opens a modal titled "Review changes — Current → New".</span></li>
+<li class="task done"><span class="check">✓</span><span>The **Text &amp; metadata** tab groups changes by section (App, then each locale).</span></li>
+<li class="task done"><span class="check">✓</span><span>Each changed field shows the old value (red strikethrough) and new value (green) with a CHG / ADD / REM badge.</span></li>
+<li class="task done"><span class="check">✓</span><span>Unchanged fields are not noise.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP03.US002</span><span class="epic-tag">EP03: Review Diff</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Diff screenshots slot-by-slot</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a designer, I want to compare screenshots per slot so that I can spot accidental swaps, additions, or removals.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>The **Screenshots** tab lists each gallery (iPhone, iPad, phone, tablet) with "Current N → New M".</span></li>
+<li class="task done"><span class="check">✓</span><span>Each slot shows Current (left) and New (right) thumbnails with CHG / ADD / REM badges; missing slots show a "—" placeholder.</span></li>
+<li class="task done"><span class="check">✓</span><span>Clicking a thumbnail opens a fullscreen lightbox (≤95vw × 90vh) captioned e.g. "New · #2 — iPhone"; Esc or backdrop closes it.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP03.US003</span><span class="epic-tag">EP03: Review Diff</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Summarize and dismiss</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want a summary and a clean exit so that I can close the review with confidence.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>The footer summarizes "X text field(s) · Y screenshot change(s) · Current → New".</span></li>
+<li class="task done"><span class="check">✓</span><span>"Looks good ✓" and "Close" both dismiss the modal.</span></li>
+<li class="task done"><span class="check">✓</span><span>If Current was never synced, the diff treats all New screenshots as additions (and says so implicitly via ADD badges).</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP04.US001</span><span class="epic-tag">EP04: Store SEO / ASO Audit</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Audit field lengths against store limits</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a developer, I want each metadata field checked against its store's character limit so that I never submit an over-length field.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Toggling "ASO checks" shows a per-field audit for the active store and locale.</span></li>
+<li class="task done"><span class="check">✓</span><span>App Store fields and limits: name 30, subtitle 30, keywords 100, promotionalText 170, description 4000, whatsNew 4000.</span></li>
+<li class="task done"><span class="check">✓</span><span>Google Play fields and limits: title 30, shortDescription 80, fullDescription 4000, changelog 500.</span></li>
+<li class="task done"><span class="check">✓</span><span>Each field shows a count badge: green within limit, red over limit.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP04.US002</span><span class="epic-tag">EP04: Store SEO / ASO Audit</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">See counts live while editing</h4>
+<div class="story-foot"><span class="task-count">2</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As an editor, I want counters to update as I type so that I can trim copy in real time.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Inline editing updates the ASO badges immediately (the ASO panel re-renders without a full page re-render).</span></li>
+<li class="task done"><span class="check">✓</span><span>Bundle id (iOS) and package name (Android) are shown in code format for reference.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP04.US003</span><span class="epic-tag">EP04: Store SEO / ASO Audit</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Catch empty required fields</h4>
+<div class="story-foot"><span class="task-count">2</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a publisher, I want empty required fields flagged so that I don't ship an incomplete listing.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Empty fields are visibly distinguishable from filled ones.</span></li>
+<li class="task done"><span class="check">✓</span><span>The audit is locale-aware: switching locale re-audits that locale's values.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP05.US001</span><span class="epic-tag">EP05: First-Release Checklist</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Work through a first-submission checklist</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a first-time publisher, I want a guided checklist so that I don't miss anything that would cause a rejection.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>"Release checklist" opens a full-screen modal grouped into sections: Accounts &amp; signing, App records, Listing content, Build, App Store version requirements, Submit, and Known first-submission rejections.</span></li>
+<li class="task done"><span class="check">✓</span><span>Each item is a checkbox with explanatory text.</span></li>
+<li class="task done"><span class="check">✓</span><span>Items are tagged WEB UI (console-only), API (scriptable), or DECLARATION (must not be fabricated).</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP05.US002</span><span class="epic-tag">EP05: First-Release Checklist</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Track progress</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want to see how far along I am so that I know what's left.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>A progress bar shows percent complete and updates live as items are checked.</span></li>
+<li class="task done"><span class="check">✓</span><span>Checkbox state persists in <code>localStorage</code> (<code>store-release-checklist-v1</code>).</span></li>
+<li class="task done"><span class="check">✓</span><span>A Reset clears all items and the stored state.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP05.US003</span><span class="epic-tag">EP05: First-Release Checklist</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Verify required assets and declarations</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a publisher, I want the checklist to enumerate concrete required assets so that I can confirm each one.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Listing content section enumerates required screenshot sizes (iPhone 6.9"/6.7", iPad 12.9", Android phone), no-alpha icon rules, and per-locale metadata.</span></li>
+<li class="task done"><span class="check">✓</span><span>App Store version section covers copyright, content rights, age rating, app privacy, pricing, and export compliance.</span></li>
+<li class="task done"><span class="check">✓</span><span>Submit section covers iOS review submission state and Android production promotion.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP06.US001</span><span class="epic-tag">EP06: Credentials, Import/Export &amp; Key Verification</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Verify API keys without saving</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a developer, I want to test my App Store Connect and Google Play credentials so that I know they work before I rely on them.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>"Test keys" POSTs the pasted <code>.env</code> to <code>/api/test</code>; nothing is written to disk.</span></li>
+<li class="task done"><span class="check">✓</span><span>App Store test mints a JWT and calls <code>/v1/apps?filter[bundleId]=…</code>; result reports ok + detail.</span></li>
+<li class="task done"><span class="check">✓</span><span>Google Play test authenticates the service account and opens then deletes a throwaway edit; result reports ok + the service-account email.</span></li>
+<li class="task done"><span class="check">✓</span><span>Each store shows ✓ (green) or ✗ (red) with a readable detail message.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP06.US002</span><span class="epic-tag">EP06: Credentials, Import/Export &amp; Key Verification</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Import a listing or credentials</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want to import a listing JSON or <code>.env</code> so that I can load a config from elsewhere.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Import offers two tabs: Listing JSON and Env · Sync API.</span></li>
+<li class="task done"><span class="check">✓</span><span>Listing JSON: paste or pick a <code>.json</code> file → "Load → Current" sets it as the read-only Current variant.</span></li>
+<li class="task done"><span class="check">✓</span><span>Env: paste or pick a file → "Save .env to local" POSTs to <code>/api/env</code>; by default it does not overwrite an existing <code>.env</code> (requires <code>?force=1</code>).</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP06.US003</span><span class="epic-tag">EP06: Credentials, Import/Export &amp; Key Verification</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Export a self-contained config</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want to export my listing and a self-contained <code>.env</code> so that I can hand off or back up my setup.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Export offers Listing JSON (copy / save <code>.json</code>) and Env · Sync API.</span></li>
+<li class="task done"><span class="check">✓</span><span>The exported <code>.env</code> includes only SYNC keys (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 → <code>_B64</code>, BUNDLE_ID, PLAYSTORE_PACKAGE_NAME, PLAYSTORE_SERVICE_ACCOUNT_JSON → <code>_B64</code>); signing/Firebase secrets are never exported.</span></li>
+<li class="task done"><span class="check">✓</span><span>File-path credentials are base64-inlined so the <code>.env</code> is self-contained (no side files).</span></li>
+<li class="task done"><span class="check">✓</span><span>The export warns that it contains real credentials and must be kept private.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP07.US001</span><span class="epic-tag">EP07: Device Mirror &amp; Remote Control</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Mirror and control an Android device</h4>
+<div class="story-foot"><span class="task-count">5</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a developer, I want to see and drive a connected Android phone so that I can capture or QA screens without leaving the tool.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>The Android tab lists devices via <code>GET /api/adb/devices</code> (serial, state, model, scrcpy availability).</span></li>
+<li class="task done"><span class="check">✓</span><span>"Live" polls <code>GET /api/adb/screen?serial=…</code> for a screencap stream with an FPS readout.</span></li>
+<li class="task done"><span class="check">✓</span><span>Tapping/swiping the mirror sends <code>POST /api/adb/input</code> (tap/swipe/text/key) with on-image touch feedback.</span></li>
+<li class="task done"><span class="check">✓</span><span>Navigator buttons (Recents/Home/Back/Vol/Power) and a text input send key/text events.</span></li>
+<li class="task done"><span class="check">✓</span><span>"scrcpy" launches a native high-FPS window via <code>POST /api/adb/scrcpy</code>.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP07.US002</span><span class="epic-tag">EP07: Device Mirror &amp; Remote Control</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Mirror and control an iPhone</h4>
+<div class="story-foot"><span class="task-count">5</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a developer, I want to mirror a real iPhone so that I can preview live screens on iOS.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>The iPhone tab lists devices via <code>GET /api/wda/devices</code> and shows WDA status via <code>/api/wda/status</code>.</span></li>
+<li class="task done"><span class="check">✓</span><span>"Start WDA" launches WebDriverAgent via <code>xcodebuild</code> (<code>POST /api/wda/launch</code>), auto-detecting signing team and project; a setup helper shows go-ios commands.</span></li>
+<li class="task done"><span class="check">✓</span><span>"Live" streams MJPEG from <code>/api/wda/mjpeg?udid=…</code>, falling back to polling <code>/api/wda/screen</code>.</span></li>
+<li class="task done"><span class="check">✓</span><span>Tap/swipe/text/buttons (Home, Vol, Lock) send <code>POST /api/wda/input</code> (logical points).</span></li>
+<li class="task done"><span class="check">✓</span><span>A USB tunnel via <code>iproxy</code> forwards ports 8100/9100.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP07.US003</span><span class="epic-tag">EP07: Device Mirror &amp; Remote Control</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Preview web, media, and markdown</h4>
+<div class="story-foot"><span class="task-count">4</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want to open links, images, and docs in the side panel so that I can review supporting material in context.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>Clicking an in-page link opens it in the panel: media files → Media tab, <code>.md</code> → Markdown tab, else Web tab (iframe, <code>no-referrer</code>).</span></li>
+<li class="task done"><span class="check">✓</span><span>Media tab renders image/video/audio from a file pick or <code>GET /api/preview-file?path=…</code>.</span></li>
+<li class="task done"><span class="check">✓</span><span>Markdown tab renders <code>.md</code>/<code>.mdx</code> with a dependency-free converter.</span></li>
+<li class="task done"><span class="check">✓</span><span>The panel is resizable (min 320px) and can pop out to a new tab.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP08.US001</span><span class="epic-tag">EP08: Desktop App Distribution</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Install and launch a native app</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want a double-click desktop app so that I can use App Preview without a terminal.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>A signed/notarized <code>.dmg</code> (macOS) and NSIS installer (Windows) install without Gatekeeper/SmartScreen blocks.</span></li>
+<li class="task done"><span class="check">✓</span><span>On launch, the Tauri shell spawns the Python sidecar, waits for <code>READY http://127.0.0.1:&lt;port&gt;/</code>, and opens a native window on that URL.</span></li>
+<li class="task done"><span class="check">✓</span><span>The bundled app serves the Playground directly at <code>/</code>; Sync/Test/Try-template work as in <code>run.sh</code>.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP08.US002</span><span class="epic-tag">EP08: Desktop App Distribution</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Keep app data isolated and seeded</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want my edits stored in a stable per-user location so that updates don't wipe my work.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>First run seeds <code>~/Library/Application Support/vn.fighttech.appstorepreview/</code> (or the platform equivalent) from the bundled tool.</span></li>
+<li class="task done"><span class="check">✓</span><span>Writable: <code>.env</code>, <code>listing.json</code>, <code>listing-current.json</code>, <code>assets/new/</code>, <code>assets/current/</code>.</span></li>
+<li class="task done"><span class="check">✓</span><span>The native File menu offers Open Folder and Check for Updates.</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP08.US003</span><span class="epic-tag">EP08: Desktop App Distribution</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Receive automatic updates</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a user, I want the app to update itself so that I always have the latest version.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span>The Tauri updater reads <code>latest.json</code> from the GitHub Release; updates are cryptographically signed and verified before install + relaunch.</span></li>
+<li class="task done"><span class="check">✓</span><span>"Check for Updates" works on demand; a silent check runs on launch.</span></li>
+<li class="task done"><span class="check">✓</span><span>CI builds and publishes signed artifacts on a version bump (macOS + Windows).</span></li>
+</ul>
+</div>
+</article>
+<article class="story-card" data-status="done" tabindex="0" role="button">
+<div class="story-head"><span class="story-id">EP08.US004</span><span class="epic-tag">EP08: Desktop App Distribution</span><span class="status-badge st-done">Done</span></div>
+<h4 class="story-title">Build and sign from source</h4>
+<div class="story-foot"><span class="task-count">3</span> tasks</div>
+<div class="story-full">
+<p class="story-desc">As a maintainer, I want a reproducible signed build so that I can cut releases.</p>
+<ul class="task-list">
+<li class="task done"><span class="check">✓</span><span><code>desktop/scripts/build-sidecar.sh</code> embeds the Playground and PyInstaller-builds the backend binary.</span></li>
+<li class="task done"><span class="check">✓</span><span><code>desktop/scripts/build.sh</code> produces the <code>.app</code>/<code>.dmg</code>; signing uses a Developer ID cert + ASC API key for notarization (assets under <code>.signing/</code>).</span></li>
+<li class="task done"><span class="check">✓</span><span><code>deploy.sh</code> / <code>appdist.sh</code> build and publish to a GitHub Release (<code>.dmg</code>, <code>latest.json</code>, <code>.app.tar.gz</code>, <code>.sig</code>).</span></li>
+</ul>
+</div>
+</article>
+</div>
+<dialog id="story-dialog">
+<div class="dialog-head"><div><span class="story-id" id="dialog-id"></span><h3 id="dialog-title"></h3></div><button type="button" class="dialog-close" id="dialog-close" aria-label="Close">✕</button></div>
+<div class="dialog-body" id="dialog-body"></div>
+</dialog>
+    </section>
+    </main>
+  </div>
+  <footer>Generated from <code>resources/srs.md</code> by <code>resources/srs.sh</code>.</footer>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    const toc = document.getElementById('toc');
+    const headings = [...document.querySelectorAll('#content h2, #content h3')];
+    let currentGroup = null;
+    headings.forEach((heading) => {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = `#${heading.id}`;
+      link.textContent = heading.textContent;
+      if (heading.tagName === 'H2') {
+        item.className = 'toc-h2';
+        const toggle = document.createElement('span');
+        toggle.className = 'toggle';
+        toggle.textContent = '▾';
+        link.prepend(toggle);
+        item.appendChild(link);
+        const sub = document.createElement('ul');
+        sub.className = 'toc-h3';
+        item.appendChild(sub);
+        toc.appendChild(item);
+        currentGroup = sub;
+        toggle.addEventListener('click', (event) => {
+          event.preventDefault();
+          item.classList.toggle('collapsed');
+        });
+      } else if (currentGroup) {
+        item.appendChild(link);
+        currentGroup.appendChild(item);
+      }
+    });
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const link = document.querySelector(`aside nav a[href="#${entry.target.id}"]`);
+        if (!link) return;
+        if (entry.isIntersecting) {
+          document.querySelectorAll('aside nav a.active, aside nav li.active').forEach((node) => node.classList.remove('active'));
+          link.classList.add('active');
+          link.closest('.toc-h2')?.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    headings.forEach((heading) => observer.observe(heading));
+
+    // View switching: Docs (TOC) / Flow (screen canvas) / Board (feature board).
+    const views = { docs: 'content', flow: 'flow-view', board: 'board-view' };
+    function setView(view) {
+      Object.entries(views).forEach(([key, id]) => {
+        const el = document.getElementById(id);
+        if (el) el.hidden = key !== view;
+      });
+      document.querySelectorAll('.view-switch button').forEach((btn) =>
+        btn.classList.toggle('active', btn.dataset.view === view));
+      const tocNav = document.getElementById('toc-nav');
+      if (tocNav) tocNav.hidden = view !== 'docs';
+      document.body.dataset.view = view;
+    }
+    document.querySelectorAll('.view-switch button').forEach((btn) =>
+      btn.addEventListener('click', () => setView(btn.dataset.view)));
+    document.body.dataset.view = 'docs';
+
+    // Board cards live in a pool; a layout function moves them into either the
+    // kanban columns (Board) or a single flat list of user stories (List).
+    const board = document.getElementById('board');
+    const boardList = document.getElementById('board-list');
+    const listFilter = document.getElementById('list-filter');
+    const pool = document.getElementById('story-pool');
+    const allCards = pool ? [...pool.children] : [];
+    const STATUSES = [['all', 'All'], ['backlog', 'Backlog'], ['todo', 'To Do'], ['inprogress', 'In Progress'], ['inreview', 'In Review'], ['done', 'Done']];
+    let currentFilter = 'all';
+
+    function applyFilter(key) {
+      currentFilter = key;
+      allCards.forEach((c) => { c.style.display = (key === 'all' || c.dataset.status === key) ? '' : 'none'; });
+      if (listFilter) listFilter.querySelectorAll('.filter-tag').forEach((t) => t.classList.toggle('active', t.dataset.filter === key));
+    }
+    function buildFilter() {
+      if (!listFilter) return;
+      listFilter.innerHTML = '';
+      STATUSES.forEach(([key, label]) => {
+        const count = key === 'all' ? allCards.length : allCards.filter((c) => c.dataset.status === key).length;
+        if (key !== 'all' && count === 0) return;
+        const tag = document.createElement('button');
+        tag.type = 'button';
+        tag.className = 'filter-tag' + (key === currentFilter ? ' active' : '');
+        tag.dataset.filter = key;
+        tag.innerHTML = label + ' <span class="ft-count">' + count + '</span>';
+        tag.addEventListener('click', () => applyFilter(key));
+        listFilter.appendChild(tag);
+      });
+    }
+    function applyLayout(layout) {
+      const list = layout === 'list';
+      if (board) board.hidden = list;
+      if (boardList) boardList.hidden = !list;
+      if (listFilter) listFilter.hidden = !list;
+      if (list && boardList) {
+        allCards.forEach((card) => boardList.appendChild(card));
+        applyFilter(currentFilter);
+      } else if (board) {
+        allCards.forEach((card) => { card.style.display = ''; });
+        board.querySelectorAll('.board-col').forEach((col) => {
+          const wrap = col.querySelector('.board-cards');
+          const cards = allCards.filter((c) => c.dataset.status === col.dataset.status);
+          wrap.innerHTML = '';
+          cards.forEach((card) => wrap.appendChild(card));
+          const count = col.querySelector('.col-count');
+          if (count) count.textContent = cards.length;
+          if (!cards.length) wrap.innerHTML = '<p class="col-empty">—</p>';
+        });
+      }
+      document.querySelectorAll('.layout-switch button').forEach((b) =>
+        b.classList.toggle('active', b.dataset.layout === layout));
+    }
+    if (allCards.length) { buildFilter(); applyLayout('board'); }
+    document.querySelectorAll('.layout-switch button').forEach((btn) =>
+      btn.addEventListener('click', () => applyLayout(btn.dataset.layout)));
+
+    // Story detail dialog: a card shows only its title; clicking opens the rest.
+    const storyDialog = document.getElementById('story-dialog');
+    if (storyDialog) {
+      const openStory = (card) => {
+        document.getElementById('dialog-id').textContent = card.querySelector('.story-id')?.textContent || '';
+        document.getElementById('dialog-title').textContent = card.querySelector('.story-title')?.textContent || '';
+        document.getElementById('dialog-body').innerHTML = card.querySelector('.story-full')?.innerHTML || '';
+        storyDialog.showModal();
+      };
+      allCards.forEach((card) => {
+        card.addEventListener('click', () => openStory(card));
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openStory(card); }
+        });
+      });
+      document.getElementById('dialog-close').addEventListener('click', () => storyDialog.close());
+      storyDialog.addEventListener('click', (event) => {
+        if (event.target === storyDialog) storyDialog.close();
+      });
+    }
+  </script>
+</body>
+</html>

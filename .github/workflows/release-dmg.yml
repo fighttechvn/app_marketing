@@ -1,8 +1,12 @@
 name: Build desktop installers (macOS + Windows)
 
-# Builds the App Preview desktop app on macOS (.dmg) and Windows (.exe NSIS).
-# - On a tag push (desktop-v* / v*): attaches the installers to that tag's Release.
-# - On manual run: uploads each installer as a workflow artifact (for testing).
+# Builds the App Preview desktop app on macOS (Apple Silicon + Intel .dmg) and
+# Windows (.exe NSIS).
+# - On a tag push (desktop-v* / v*): build jobs only produce artifacts; a single
+#   `release` job attaches everything (both .dmg, both updater bundles, .exe and a
+#   combined latest.json) to that tag's Release.
+# - On a manual run: the build jobs still run and upload workflow artifacts (for
+#   testing); the release job is skipped (no tag to attach to).
 
 on:
   push:
@@ -15,20 +19,16 @@ permissions:
   contents: write          # create/upload release assets
 
 jobs:
-  dmg:
+  # ── macOS Apple Silicon (.dmg + updater .app.tar.gz/.sig) ──────────────────────
+  macos:
     runs-on: macos-latest  # arm64 (aarch64-apple-darwin)
     steps:
       - uses: actions/checkout@v4
-
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Python (for the PyInstaller sidecar)
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -50,8 +50,7 @@ jobs:
           fi
 
       # Make the release version follow the tag (desktop-v0.4.0 → 0.4.0), so the
-      # built app + latest.json always match the tag and stay monotonic — no manual
-      # tauri.conf.json bump to forget. Existing installs then see the new version.
+      # built app + latest.json always match the tag and stay monotonic.
       - name: Sync version from tag
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -68,58 +67,99 @@ jobs:
         working-directory: desktop
         run: bash scripts/build.sh
         env:
-          # Signing + notarization. Leave the secrets unset → unsigned (ad-hoc) build.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          # Tauri updater signing (signs the .app.tar.gz → .sig for auto-update).
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      # Build the updater manifest (latest.json) from the signed .app.tar.gz.
-      - name: Generate updater manifest
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Stage macOS artifacts
         run: |
-          B=desktop/src-tauri/target/release/bundle/macos
-          SIG_FILE="$B/AppPreview.app.tar.gz.sig"
-          if [ ! -f "$SIG_FILE" ]; then echo "no updater .sig (TAURI_SIGNING_PRIVATE_KEY unset?) — skipping"; exit 0; fi
-          VER=$(python3 -c "import json;print(json.load(open('desktop/src-tauri/tauri.conf.json'))['version'])")
-          SIG=$(cat "$SIG_FILE")
-          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/AppPreview.app.tar.gz"
-          PUB=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          python3 -c 'import json,sys; v,p,u,s,o=sys.argv[1:6]; open(o,"w").write(json.dumps({"version":v,"pub_date":p,"platforms":{"darwin-aarch64":{"signature":s,"url":u}}},indent=2))' "$VER" "$PUB" "$URL" "$SIG" "$RUNNER_TEMP/latest.json"
-          echo "LATEST_JSON=$RUNNER_TEMP/latest.json" >> "$GITHUB_ENV"
-          echo "wrote latest.json for v$VER"
+          mkdir -p dist
+          B=desktop/src-tauri/target/release/bundle
+          cp "$B"/dmg/*.dmg dist/ 2>/dev/null || true
+          cp "$B"/macos/AppPreview.app.tar.gz dist/ 2>/dev/null || true
+          cp "$B"/macos/AppPreview.app.tar.gz.sig dist/ 2>/dev/null || true
+          ls -la dist
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: app-preview-macos-dmg
-          path: desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          name: dist-macos
+          path: dist/*
           if-no-files-found: error
 
-      - name: Attach to Release (tag only)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+  # ── macOS Intel (.dmg + updater .app.tar.gz/.sig) ──────────────────────────────
+  # Native Intel build (PyInstaller sidecar can't cross-compile). macos-13 is the
+  # last Intel-based GitHub-hosted runner. Updater bundle renamed → AppPreview_x64.*
+  macos_intel:
+    runs-on: macos-13      # x86_64 (Intel — x86_64-apple-darwin)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
         with:
-          # .dmg (manual download) + .app.tar.gz + .sig + latest.json (auto-updater)
-          files: |
-            desktop/src-tauri/target/release/bundle/dmg/*.dmg
-            desktop/src-tauri/target/release/bundle/macos/AppPreview.app.tar.gz
-            desktop/src-tauri/target/release/bundle/macos/AppPreview.app.tar.gz.sig
-            ${{ env.LATEST_JSON }}
-          fail_on_unmatched_files: false
-          body: |
-            App Preview — macOS desktop build (Tauri + Python sidecar).
-            Signed with Developer ID & notarized by Apple — opens with no Gatekeeper warning.
-            Auto-update enabled (File ▸ Check for Updates…).
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-            (If the Apple signing secrets are unset, the build falls back to unsigned;
-            then run `xattr -dr com.apple.quarantine "/Applications/AppPreview.app"` to open.)
+      - name: Install Tauri CLI deps
+        working-directory: desktop
+        run: npm ci
 
+      - name: Prepare notary key
+        env:
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+        run: |
+          if [ -n "$APPLE_API_KEY_B64" ]; then
+            echo "$APPLE_API_KEY_B64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+          fi
+
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VER="${GITHUB_REF_NAME#desktop-v}"; VER="${VER#v}"
+          python3 - "$VER" <<'PY'
+          import json, sys
+          p = "desktop/src-tauri/tauri.conf.json"
+          d = json.load(open(p)); d["version"] = sys.argv[1]
+          json.dump(d, open(p, "w"), indent=2); open(p, "a").write("\n")
+          print("→ release version set from tag:", sys.argv[1])
+          PY
+
+      - name: Build .dmg (icons → sidecar → tauri)
+        working-directory: desktop
+        run: bash scripts/build.sh
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Stage macOS Intel artifacts
+        run: |
+          mkdir -p dist
+          B=desktop/src-tauri/target/release/bundle
+          cp "$B"/dmg/*.dmg dist/ 2>/dev/null || true
+          cp "$B"/macos/AppPreview.app.tar.gz dist/AppPreview_x64.app.tar.gz 2>/dev/null || true
+          cp "$B"/macos/AppPreview.app.tar.gz.sig dist/AppPreview_x64.app.tar.gz.sig 2>/dev/null || true
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos-intel
+          path: dist/*
+          if-no-files-found: error
+
+  # ── Windows .exe NSIS ──────────────────────────────────────────────────────────
   windows:
     runs-on: windows-latest          # x86_64-pc-windows-msvc
     steps:
@@ -149,23 +189,118 @@ jobs:
 
       - name: Build Windows installer (.exe NSIS)
         working-directory: desktop
-        # Updater signing (signs the NSIS bundle → .sig for auto-update). Unsigned
-        # installer otherwise (no Authenticode cert yet → SmartScreen may warn once).
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx --yes @tauri-apps/cli build --bundles nsis
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Stage Windows artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          B=desktop/src-tauri/target/release/bundle/nsis
+          cp "$B"/*-setup.exe dist/ 2>/dev/null || true
+          cp "$B"/*-setup.exe.sig dist/ 2>/dev/null || true
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: app-preview-windows-setup
-          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          name: dist-windows
+          path: dist/*
           if-no-files-found: error
 
-      - name: Attach to Release (tag only)
-        if: startsWith(github.ref, 'refs/tags/')
+  # ── Tag only: gather artifacts, build combined latest.json, attach to Release ───
+  release:
+    needs: [macos, macos_intel, windows]
+    if: always() && startsWith(github.ref, 'refs/tags/') && needs.macos.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-macos
+          path: dist
+
+      - name: Download macOS Intel artifacts
+        if: needs.macos_intel.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-macos-intel
+          path: dist
+
+      - name: Download Windows artifacts
+        if: needs.windows.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-windows
+          path: dist
+
+      - name: Build combined updater manifest (latest.json)
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VER="${TAG#desktop-v}"; VER="${VER#v}"
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          PUB=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          python3 - "$VER" "$PUB" "$BASE" <<'PY'
+          import json, sys, glob, os
+          ver, pub, base = sys.argv[1:4]
+          platforms = {}
+
+          mac_sig = "dist/AppPreview.app.tar.gz.sig"
+          if os.path.exists(mac_sig):
+              platforms["darwin-aarch64"] = {
+                  "signature": open(mac_sig).read().strip(),
+                  "url": f"{base}/AppPreview.app.tar.gz",
+              }
+
+          mac_x64_sig = "dist/AppPreview_x64.app.tar.gz.sig"
+          if os.path.exists(mac_x64_sig):
+              platforms["darwin-x86_64"] = {
+                  "signature": open(mac_x64_sig).read().strip(),
+                  "url": f"{base}/AppPreview_x64.app.tar.gz",
+              }
+
+          win_sig = glob.glob("dist/*-setup.exe.sig")
+          if win_sig:
+              fname = os.path.basename(win_sig[0])[:-4]  # strip ".sig"
+              platforms["windows-x86_64"] = {
+                  "signature": open(win_sig[0]).read().strip(),
+                  "url": f"{base}/{fname}",
+              }
+
+          if not platforms:
+              print("no updater signatures found — skipping latest.json")
+              sys.exit(0)
+          json.dump({"version": ver, "pub_date": pub, "platforms": platforms},
+                    open("dist/latest.json", "w"), indent=2)
+          print("wrote latest.json for platforms:", ", ".join(platforms))
+          PY
+          ls -la dist
+
+      - name: Attach to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          files: |
+            dist/*.dmg
+            dist/AppPreview.app.tar.gz
+            dist/AppPreview.app.tar.gz.sig
+            dist/AppPreview_x64.app.tar.gz
+            dist/AppPreview_x64.app.tar.gz.sig
+            dist/*-setup.exe
+            dist/latest.json
           fail_on_unmatched_files: false
+          body: |
+            App Preview — desktop build.
+
+            • macOS Apple Silicon (`*_aarch64.dmg`): for M1/M2/M3/M4 Macs.
+            • macOS Intel (`*_x64.dmg`): for older Intel Macs.
+              Both signed with Developer ID & notarized — open with no Gatekeeper warning.
+            • Windows (.exe): NSIS installer (not Authenticode-signed yet → SmartScreen may
+              warn once; click "More info" ▸ "Run anyway").
+
+            Auto-update enabled on all platforms (File ▸ Check for Updates…).
+
+            (If the Apple signing secrets are unset, the macOS build falls back to unsigned;
+            then run `xattr -dr com.apple.quarantine "/Applications/AppPreview.app"` to open.)

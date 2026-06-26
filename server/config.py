@@ -14,6 +14,7 @@ Secrets (runner passwords / private keys) are stored in plaintext here, exactly
 as the previous localStorage store did. The file is created mode 0600.
 """
 import os, threading
+from . import context
 
 # Default to ~/.apppreview; override for tests via APPPREVIEW_CONFIG.
 CONFIG_PATH = os.environ.get("APPPREVIEW_CONFIG") or \
@@ -187,3 +188,84 @@ def delete_runner(rid):
             doc[_K_ACTIVE] = ""
         _dump_doc(doc)
     return get_state()
+
+
+# ── Tool paths + screenshot dir (Config / Paths dialog) ───────────────────────
+# Stored under a top-level ``paths`` key in the SAME ~/.apppreview file, so the
+# whole app config lives in one place. The device modules (android/ios) read an
+# override via get(); blank means "auto-detect on PATH/SDK".
+_K_PATHS = "paths"
+PATH_KEYS = ("adb", "aapt", "scrcpy", "emulator", "iproxy", "go_ios", "wda_project", "screenshot_dir")
+
+
+def _paths_doc():
+    d = _load_doc().get(_K_PATHS)
+    return d if isinstance(d, dict) else {}
+
+
+def get(key, default=""):
+    """Effective override for a tool path (stripped). Blank → ``default``."""
+    v = str(_paths_doc().get(key) or "").strip()
+    return v or default
+
+
+def save_paths(d):
+    """Persist tool-path / screenshot-dir overrides under the ``paths`` key.
+    Blank values are removed (back to auto-detect). Returns paths_dump()."""
+    d = d or {}
+    with _LOCK:
+        doc = _load_doc()
+        cur = doc.get(_K_PATHS)
+        if not isinstance(cur, dict):
+            cur = _new_doc()
+            doc[_K_PATHS] = cur
+        for k in PATH_KEYS:
+            if k in d:
+                val = (d.get(k) or "").strip()
+                if val:
+                    cur[k] = val
+                elif k in cur:
+                    del cur[k]
+        if not cur:                       # drop an empty paths map entirely
+            try: del doc[_K_PATHS]
+            except Exception: pass
+        _dump_doc(doc)
+    return paths_dump()
+
+
+def screenshot_dir():
+    """Default save dir for captured screenshots (created on demand)."""
+    d = os.path.expanduser(get("screenshot_dir") or os.path.join(context.HERE, "screenshots"))
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def paths_dump():
+    """Everything the Config / Paths dialog needs: each tool's resolved path +
+    found-state + current override, plus the screenshot dir and config path."""
+    from . import android, ios   # lazy to avoid an import cycle
+    from .util import have
+    cfg = _paths_doc()
+
+    def row(key, label, resolved, hint):
+        return {"key": key, "label": label, "resolved": resolved or "",
+                "found": have(resolved), "override": str(cfg.get(key, "") or ""), "hint": hint}
+
+    tools = [
+        row("adb", "adb (Android Debug Bridge)", android.adb_bin(),
+            "Mirror + điều khiển Android, cài APK (adb install)"),
+        row("aapt", "aapt / aapt2 (Android build-tools)", android.aapt_bin(),
+            "Đọc package name của APK để tự mở app sau khi cài"),
+        row("scrcpy", "scrcpy", android.scrcpy_bin(),
+            "Cửa sổ mirror native tốc độ cao"),
+        row("emulator", "Android emulator", android.emulator_bin(),
+            "Khởi động AVD (máy ảo Android)"),
+        row("iproxy", "iproxy (libimobiledevice)", ios.iproxy_bin(),
+            "Tunnel USB cho WebDriverAgent (iOS thật)"),
+        row("go_ios", "go-ios (ios CLI)", ios.go_ios_bin(),
+            "Cài .ipa lên iPhone thật (ios install)"),
+        row("wda_project", "WebDriverAgent.xcodeproj", ios.wda_project_path(),
+            "Build WDA để điều khiển iOS"),
+    ]
+    return {"ok": True, "configPath": CONFIG_PATH, "screenshotDir": screenshot_dir(),
+            "config": _plain(cfg), "tools": tools}

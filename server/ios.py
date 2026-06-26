@@ -7,14 +7,22 @@ device (Xcode or go-ios launch). NOTE: WDA gesture coords are logical POINTS
 (window/size), not screenshot pixels — the frontend maps clicks via the points
 size reported by status().
 """
-import os, re, json, glob, time, base64, shutil, tempfile, subprocess, urllib.request
+import os, re, json, glob, time, zipfile, base64, shutil, tempfile, subprocess, urllib.request
 from .util import find_bin, have, run
 from . import remote   # when a remote Mac runner is connected, simctl/xcodebuild run there
+from . import config
 
 IPROXY = find_bin("iproxy", "IPROXY_BIN")
 IDEVICE_ID = find_bin("idevice_id", "IDEVICE_ID_BIN")
 IDEVICEINFO = find_bin("ideviceinfo", "IDEVICEINFO_BIN")
 GO_IOS = find_bin("ios", "GO_IOS_BIN")     # danielpaulus/go-ios (device list / fallback)
+
+# Effective binaries / project: a Config / Paths override wins, else auto-detect.
+def iproxy_bin():       return config.get("iproxy") or IPROXY
+def go_ios_bin():       return config.get("go_ios") or GO_IOS
+# Cheap resolver for the Config dialog: override or $WDA_PROJECT only — NOT the
+# recursive home-dir glob in _wda_project() (too slow to run on every /api/config).
+def wda_project_path(): return config.get("wda_project") or os.environ.get("WDA_PROJECT", "")
 XCODEBUILD = shutil.which("xcodebuild") or "/usr/bin/xcodebuild"
 XCRUN = shutil.which("xcrun") or "/usr/bin/xcrun"   # simctl lives behind xcrun
 _RUNWDA = {"udid": None, "proc": None}     # the WDA runner (xcodebuild) we started
@@ -176,7 +184,7 @@ def _ios_default(udid):
 
 
 def _go_ok():
-    return have(GO_IOS)
+    return have(go_ios_bin())
 
 
 def _tunnel_running():
@@ -322,14 +330,14 @@ def _ios_tunnel(udid):
             _IPROXY["proc"] = None
             _WDA_SID.pop(udid, None)     # drop a stale session that pointed at the device's WDA
         return
-    if not have(IPROXY):
+    if not have(iproxy_bin()):
         raise RuntimeError("iproxy not found (brew install libimobiledevice)")
     cur = _IPROXY["proc"]
     if _IPROXY["udid"] == udid and cur and cur.poll() is None:
         return
     if cur and cur.poll() is None:
         cur.terminate()
-    cmd = [IPROXY, "%d:%d" % (WDA_HTTP_LOCAL, WDA_HTTP_LOCAL),
+    cmd = [iproxy_bin(), "%d:%d" % (WDA_HTTP_LOCAL, WDA_HTTP_LOCAL),
            "%d:%d" % (WDA_MJPEG_LOCAL, WDA_MJPEG_LOCAL)]
     if udid:
         cmd += ["-u", udid]
@@ -492,3 +500,65 @@ def ios_input(body):
     else:
         return {"ok": False, "error": "unknown action %s" % act}
     return {"ok": True}
+
+
+def _ipa_app(path):
+    """Unzip an .ipa's Payload/*.app to a temp dir (simctl installs .app, not .ipa)."""
+    out = tempfile.mkdtemp(prefix="sp-ipa-")
+    with zipfile.ZipFile(path) as z:
+        z.extractall(out)
+    hits = glob.glob(os.path.join(out, "Payload", "*.app"))
+    return hits[0] if hits else ""
+
+
+def ios_install(udid, path):
+    """Install a build dropped onto the iPhone frame. Simulator → `simctl install`
+    (.app, or the .app unzipped from an .ipa); real device → `go-ios install` of an
+    .ipa. Remote Mac runners aren't supported here (the file is on this host)."""
+    udid = _ios_default(udid)
+    if not udid:
+        return {"ok": False, "error": "no iPhone or simulator selected"}
+    if not path or not os.path.exists(path):
+        return {"ok": False, "error": "build not found: %s" % path}
+    if _rmt():
+        return {"ok": False, "error": "install over a remote Mac runner isn't supported yet — "
+                                       "do it on the Mac, or connect the device locally"}
+    if _is_sim(udid):
+        if not _have_xcrun():
+            return {"ok": False, "error": "xcrun/simctl not found — install Xcode"}
+        app = path
+        if path.lower().endswith(".ipa"):
+            app = _ipa_app(path)
+            if not app:
+                return {"ok": False, "error": "no Payload/*.app inside the .ipa"}
+        _sim_boot(udid)                       # must be booted to receive an install
+        out, err, rc = run([XCRUN, "simctl", "install", udid, app], timeout=180)
+        if rc != 0:
+            return {"ok": False, "error": (err.strip() or out.strip() or "simctl install failed")[:300]}
+        return {"ok": True, "out": "installed on simulator", "sim": True}
+    # real device → go-ios
+    if not _go_ok():
+        return {"ok": False, "error": "go-ios not installed (npm i -g go-ios) — needed to install on a real iPhone"}
+    if not path.lower().endswith(".ipa"):
+        return {"ok": False, "error": "a real device needs a signed .ipa (got %s)" % os.path.basename(path)}
+    out, err, rc = run([go_ios_bin(), "install", "--path=" + path, "--udid=" + udid], timeout=600)
+    msg = (out or "") + (err or "")
+    if rc != 0 or "failed" in msg.lower() or "error" in msg.lower():
+        return {"ok": False, "error": (msg.strip() or "go-ios install failed")[:300]}
+    return {"ok": True, "out": "installed on device"}
+
+
+def ios_capture(udid, dest_dir):
+    """Grab the current iPhone/sim screen and save a PNG into `dest_dir`.
+    Returns the saved path so the UI can show a draggable thumbnail."""
+    data = ios_screen(udid)
+    os.makedirs(dest_dir, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    name = "ios-%s.png" % stamp
+    path = os.path.join(dest_dir, name)
+    n = 1
+    while os.path.exists(path):
+        name = "ios-%s-%d.png" % (stamp, n); path = os.path.join(dest_dir, name); n += 1
+    with open(path, "wb") as f:
+        f.write(data)
+    return {"ok": True, "path": path, "file": name}

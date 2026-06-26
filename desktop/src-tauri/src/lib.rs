@@ -99,17 +99,33 @@ pub fn run() {
                     tauri::DragDropEvent::Drop { paths, .. } => {
                         let _ = win.eval("window.__dragHint&&window.__dragHint(false)");
                         if let Some(p) = paths.first() {
-                            // Forgiving: dropping a file (e.g. listing.json) opens its folder.
-                            let dir = if p.is_dir() {
-                                p.clone()
-                            } else {
-                                p.parent().map(|x| x.to_path_buf()).unwrap_or_else(|| p.clone())
-                            };
-                            let s = dir.to_string_lossy().to_string();
-                            let _ = win.eval(&format!(
-                                "window.__openFolder&&window.__openFolder({:?}).catch(function(e){{console.error(e)}})",
-                                s
-                            ));
+                            // A dropped build (.apk/.ipa/.app) → install it on the connected
+                            // device via the device panel; anything else opens as a project
+                            // folder (dropping a file opens its parent folder).
+                            let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                            let full = p.to_string_lossy().to_string();
+                            match ext.as_str() {
+                                "apk" | "apks" => {
+                                    let _ = win.eval(&format!(
+                                        "window.__installBuild&&window.__installBuild('android',{:?})", full));
+                                }
+                                "ipa" | "app" => {
+                                    let _ = win.eval(&format!(
+                                        "window.__installBuild&&window.__installBuild('ios',{:?})", full));
+                                }
+                                _ => {
+                                    let dir = if p.is_dir() {
+                                        p.clone()
+                                    } else {
+                                        p.parent().map(|x| x.to_path_buf()).unwrap_or_else(|| p.clone())
+                                    };
+                                    let s = dir.to_string_lossy().to_string();
+                                    let _ = win.eval(&format!(
+                                        "window.__openFolder&&window.__openFolder({:?}).catch(function(e){{console.error(e)}})",
+                                        s
+                                    ));
+                                }
+                            }
                         }
                     }
                     _ => {}

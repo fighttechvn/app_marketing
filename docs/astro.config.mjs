@@ -19,14 +19,22 @@ function rehypeBaseLinks() {
   const base = BASE.replace(/\/$/, '');
   const isUmbrella = (h) =>
     h === '/' || h === '/playground' || h.startsWith('/playground/') || h.startsWith('/screenshots');
+  const rewrite = (h) => {
+    if (!h.startsWith('/') || h.startsWith('//') || /^https?:/.test(h)) return h;
+    if (isUmbrella(h)) return UMBRELLA ? UMBRELLA + h : h;       // local: leave at root
+    if (!h.startsWith(base + '/') && h !== base) return base + h;
+    return h;
+  };
   const visit = (node) => {
+    // Markdown links → hast element with tagName/properties.
     if (node.tagName === 'a' && node.properties && typeof node.properties.href === 'string') {
-      const h = node.properties.href;
-      if (h.startsWith('/') && !h.startsWith('//') && !/^https?:/.test(h)) {
-        if (isUmbrella(h)) {
-          if (UMBRELLA) node.properties.href = UMBRELLA + h;     // local: leave at root
-        } else if (!h.startsWith(base + '/') && h !== base) {
-          node.properties.href = base + h;
+      node.properties.href = rewrite(node.properties.href);
+    }
+    // Raw-HTML <a> in MDX → JSX node with a `name` + `attributes` array.
+    if ((node.type === 'mdxJsxTextElement' || node.type === 'mdxJsxFlowElement') && node.name === 'a') {
+      for (const attr of node.attributes || []) {
+        if (attr.type === 'mdxJsxAttribute' && attr.name === 'href' && typeof attr.value === 'string') {
+          attr.value = rewrite(attr.value);
         }
       }
     }

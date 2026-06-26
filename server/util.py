@@ -2,6 +2,20 @@
 import os, re, shutil, subprocess, urllib.request
 
 
+def exe_path(path):
+    """Resolve a bare executable path, adding a Windows extension if needed.
+    `shutil.which` already tries PATHEXT, but explicit path checks don't — so a
+    candidate like `<sdk>/emulator/emulator` would miss `emulator.exe`. Returns
+    the existing path (with extension on Windows) or None."""
+    if os.path.exists(path):
+        return path
+    if os.name == "nt":
+        for ext in (".exe", ".bat", ".cmd"):
+            if os.path.exists(path + ext):
+                return path + ext
+    return None
+
+
 def find_bin(name, env_key, extra=()):
     """Locate a CLI tool. GUI-launched apps (Tauri) often have a minimal PATH that
     omits the Android SDK and Homebrew, so fall back to common install locations."""
@@ -20,8 +34,9 @@ def find_bin(name, env_key, extra=()):
               os.path.join(home, "Android/Sdk/platform-tools", name),
               "/opt/homebrew/bin/" + name, "/usr/local/bin/" + name, "/usr/bin/" + name]
     for c in cands:
-        if os.path.exists(c):
-            return c
+        hit = exe_path(c)
+        if hit:
+            return hit
     return name
 
 

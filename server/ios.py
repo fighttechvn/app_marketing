@@ -9,6 +9,7 @@ size reported by status().
 """
 import os, re, json, glob, time, base64, shutil, tempfile, subprocess, urllib.request
 from .util import find_bin, have, run
+from . import remote   # when a remote Mac runner is connected, simctl/xcodebuild run there
 
 IPROXY = find_bin("iproxy", "IPROXY_BIN")
 IDEVICE_ID = find_bin("idevice_id", "IDEVICE_ID_BIN")
@@ -21,7 +22,21 @@ _RUNWDA_LOG = os.path.join(tempfile.gettempdir(), "sp-runwda.log")
 _SIM_SET = set()                           # known simulator UDIDs (refreshed by _sim_list)
 
 
+# ---- local vs remote dispatch -------------------------------------------------
+# When a Mac runner is connected (remote.active()), the macOS-only commands
+# (simctl/xcodebuild) run on the Mac over SSH, and WDA's HTTP/MJPEG ports reach
+# the Mac through the SSH tunnel (so the 127.0.0.1 WDA code below is unchanged).
+def _rmt():        return remote.active()
+def _xcrun():      return "xcrun" if _rmt() else XCRUN
+def _xcodebuild(): return "xcodebuild" if _rmt() else XCODEBUILD
+def _host_run(argv, timeout=20):
+    return remote.run(argv, timeout) if _rmt() else run(argv, timeout)
+
+
 def _have_xcrun():
+    if _rmt():
+        try: return _host_run([_xcrun(), "--version"], timeout=10)[2] == 0
+        except Exception: return False
     return have(XCRUN) and have(XCODEBUILD)
 
 
@@ -31,7 +46,7 @@ def _sim_list():
     if not _have_xcrun():
         return []
     try:
-        out, _, rc = run([XCRUN, "simctl", "list", "devices", "available", "--json"], timeout=20)
+        out, _, rc = _host_run([_xcrun(), "simctl", "list", "devices", "available", "--json"], timeout=20)
         devices = json.loads(out or "{}").get("devices", {}) if rc == 0 else {}
     except Exception:
         return []
@@ -69,9 +84,13 @@ def _sim_info(udid):
 
 def _sim_boot(udid):
     """Boot a simulator (idempotent) and bring Simulator.app to the front."""
-    run([XCRUN, "simctl", "boot", udid], timeout=40)   # rc!=0 if already booted — fine
-    subprocess.Popen(["open", "-a", "Simulator"],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _host_run([_xcrun(), "simctl", "boot", udid], timeout=40)   # rc!=0 if already booted — fine
+    if _rmt():
+        try: _host_run(["open", "-a", "Simulator"], timeout=10)
+        except Exception: pass
+    else:
+        subprocess.Popen(["open", "-a", "Simulator"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _wda_project():
@@ -147,8 +166,13 @@ def _ios_info(udid, key):
 
 
 def _ios_default(udid):
-    """Resolve to the given udid, or fall back to the first connected device."""
-    return udid or (_ios_list() or [None])[0]
+    """Resolve to the given udid, or fall back to the first device/simulator."""
+    if udid:
+        return udid
+    if _rmt():
+        sims = _sim_list()
+        return sims[0]["udid"] if sims else None
+    return (_ios_list() or [None])[0]
 
 
 def _go_ok():
@@ -169,6 +193,13 @@ def _tunnel_running():
 
 def ios_devices():
     sims = _sim_list()
+    if _rmt():
+        # remote Mac: only its simulators (no USB device passthrough over SSH).
+        return {"ok": True, "remote": True, "host": remote.status().get("host"),
+                "iproxy": False, "goios": False, "tunnel": True, "simctl": _have_xcrun(),
+                "devices": [],
+                "sims": [{"udid": s["udid"], "name": s["name"], "ios": s["os"],
+                          "state": s["state"], "kind": "simulator"} for s in sims]}
     return {"ok": True, "iproxy": have(IPROXY), "goios": _go_ok(), "tunnel": _tunnel_running(),
             "simctl": _have_xcrun(),
             "devices": [{"udid": u, "name": _ios_info(u, "DeviceName") or u,
@@ -178,11 +209,55 @@ def ios_devices():
                       "state": s["state"], "kind": "simulator"} for s in sims]}
 
 
+def _wda_project_remote():
+    """Locate a WebDriverAgent.xcodeproj on the Mac (Appium's xcuitest bundles one).
+    Pass a plain command string (no login shell) so profile banners can't pollute
+    the result, and accept it only if it really is a .xcodeproj path."""
+    cmd = ('p="${WDA_PROJECT:-}"; if [ -n "$p" ] && [ -e "$p" ]; then echo "$p"; exit; fi; '
+           'find "$HOME/.appium" -type d -name WebDriverAgent.xcodeproj 2>/dev/null | head -1')
+    try:
+        out, _, _ = remote.run(cmd, timeout=25)
+    except Exception:
+        return ""
+    lines = [l.strip() for l in out.splitlines() if l.strip()]
+    line = lines[-1] if lines else ""
+    return line if line.endswith("WebDriverAgent.xcodeproj") else ""
+
+
+def _launch_remote(udid):
+    """Boot the Mac's simulator and (if a WDA project exists) launch WebDriverAgent
+    on the Mac via a detached `xcodebuild test`. WDA's 8100/9100 reach us through
+    the SSH tunnel, so taps + live MJPEG work once it's up."""
+    udid = _ios_default(udid)
+    if not udid:
+        return {"ok": False, "error": "no simulator on the Mac"}
+    _sim_boot(udid)                       # booted → simctl screenshot mirror works immediately
+    if _wda_ready():
+        return {"ok": True, "running": True, "sim": True, "remote": True}
+    proj = _wda_project_remote()
+    if not proj:
+        return {"ok": True, "running": False, "sim": True, "noinput": True, "remote": True,
+                "hint": "Simulator booted on the Mac — live screen works. Install Appium's WDA on the "
+                        "Mac (`appium driver install xcuitest`) for tap/swipe control."}
+    cmd = ("nohup xcodebuild -project %s -scheme WebDriverAgentRunner "
+           "-destination 'platform=iOS Simulator,id=%s' CODE_SIGNING_ALLOWED=NO test "
+           "> /tmp/sp-runwda.log 2>&1 & echo started") % (remote._q(proj), udid)
+    try:
+        remote.run(cmd, timeout=20)
+    except Exception as e:
+        return {"ok": False, "error": "failed to start WebDriverAgent on the Mac",
+                "detail": str(e)[:160], "remote": True}
+    return {"ok": True, "running": False, "launching": True, "sim": True, "remote": True,
+            "hint": "Building & launching WebDriverAgent on the Mac… first time ~1–3 min, then it connects."}
+
+
 def ios_launch(udid):
     """One-click WebDriverAgent launcher via `xcodebuild test` (Apple's own path —
     works on iOS 18 where go-ios `runwda` can't, and needs NO sudo tunnel).
     Returns immediately; the frontend polls /api/wda/status until it's up. First
     build can take 1–3 min, subsequent launches ~15s (DerivedData is cached)."""
+    if _rmt():
+        return _launch_remote(udid)
     udid = _ios_default(udid)
     if not udid:
         return {"ok": False, "error": "no device connected"}
@@ -237,6 +312,8 @@ def _ios_tunnel(udid):
     Simulators need no tunnel — their WDA binds 127.0.0.1:8100 on the host directly —
     so we must also TEAR DOWN any device tunnel, or :8100 would still point at the
     physical device's WDA and the sim would mirror the wrong screen."""
+    if _rmt():
+        return   # the SSH port-forward (remote.py) already maps Mac 8100/9100 → here
     if _is_sim(udid):
         cur = _IPROXY["proc"]
         if cur and cur.poll() is None:   # transitioning away from a real device
@@ -328,6 +405,16 @@ def ios_screen(udid):
         if not _is_sim(udid):
             raise
     # simulator without WDA → simctl still gives us the picture (no input though).
+    if _rmt():
+        # take the shot on the Mac, then pull the bytes back over SFTP.
+        rpath = "/tmp/sp-sim-%s.png" % (udid[:8])
+        _, err, rc = remote.run([_xcrun(), "simctl", "io", udid, "screenshot", "--type=png", rpath], timeout=20)
+        if rc != 0:
+            raise RuntimeError(err.strip() or "remote simctl screenshot failed")
+        data = remote.read_file(rpath)
+        if not data:
+            raise RuntimeError("remote simctl screenshot empty")
+        return data
     # Write to a temp file (newer simctl treats "-" as a literal path, not stdout).
     fd, path = tempfile.mkstemp(suffix=".png")
     os.close(fd)

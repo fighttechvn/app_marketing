@@ -19,6 +19,7 @@
     border-bottom:1px solid var(--line);padding:10px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .ctl .brand{font-weight:700;font-size:14px}
   .ctl .brand span{color:var(--muted);font-weight:500}
+  .ctl-break{flex-basis:100%;height:0;margin:0}   /* forces the toolbar to wrap to a new line here */
   .spacer{flex:1}
   .seg{display:inline-flex;background:#ececf0;border-radius:9px;padding:3px}
   .seg button{background:transparent;border:0;border-radius:7px;padding:6px 13px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
@@ -369,6 +370,34 @@
     font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;box-sizing:border-box;background:var(--bg);color:var(--ink)}
   .cfg-text[readonly]{background:#f7f7f9}
   .cfg-exptabs{margin:0 0 10px;display:inline-flex}
+  /* runners (machine/SSH) manager — reuses .diff-overlay/.diff-modal */
+  .rn-note{font-size:12.5px;color:var(--muted);background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:8px 11px;margin:4px 0 12px}
+  .rn-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .rn-conn{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--ink);background:#ecfdf5;border:1px solid #a7f3d0;border-radius:9px;padding:8px 11px;margin-bottom:10px}
+  .rn-conn button{margin-left:auto;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink)}
+  .rn-empty{color:var(--muted);font-size:13px;text-align:center;padding:18px;border:1px dashed var(--line);border-radius:10px}
+  .rn-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+  .rn-row.active{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink) inset}
+  .rn-row .rn-main{flex:1;min-width:0}
+  .rn-row .rn-name{font-weight:700;font-size:13.5px}
+  .rn-row .rn-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rn-row .rn-badge{font-size:11px;font-weight:700;color:var(--ok);border:1px solid var(--ok);border-radius:6px;padding:1px 6px}
+  .rn-row button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink)}
+  .rn-form{border-top:1px solid var(--line);padding-top:14px}
+  .rn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .rn-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
+  .rn-grid input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--ink);font-family:inherit;background:var(--bg)}
+  .rn-formfoot{display:flex;align-items:center;gap:10px;margin-top:12px}
+  .rn-formfoot .rn-msg{flex:1;font-size:12.5px;color:var(--muted)}
+  .rn-formfoot button{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:8px 16px;font-weight:600;font-size:13px;cursor:pointer;color:var(--ink)}
+  .rn-formfoot button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  /* settings dialog — moved toolbar actions as a vertical list */
+  .set-modal{max-width:420px}
+  .set-list{display:flex;flex-direction:column;gap:8px;padding:4px 0}
+  .set-list button{width:100%;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:10px;
+    padding:13px 15px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer}
+  .set-list button:hover{border-color:var(--ink)}
+  .set-list button.active{background:var(--ink);color:#fff;border-color:var(--ink)}
   .diff-imgs .cur img{outline:2px solid rgba(210,59,59,.45)}
   .diff-imgs .nw img{outline:2px solid rgba(26,156,84,.6)}
   .diff-arrow{color:var(--muted);font-size:18px;flex:none}
@@ -408,13 +437,12 @@
   <button class="toggle" id="syncBtn" title="Pull the live listing from App Store + Google Play into the Current tab (calls /api/sync)">⟳ Sync</button>
   <button class="toggle" id="submitBtn" title="Preview the diff between Current (live on store) and New (pending) before submitting">Review Diff</button>
   <div class="seg" id="localeSeg"></div>
+  <div class="ctl-break"></div>
   <button class="toggle" id="asoToggle">ASO checks</button>
   <button class="toggle" id="inlineBtn">Edit on page</button>
-  <button class="toggle" id="checklistBtn">Release checklist</button>
   <button class="toggle" id="editToggle">Edit JSON</button>
-  <button class="toggle" id="exportBtn">⤓ Export</button>
-  <button class="toggle" id="loadBtn">⤒ Import</button>
   <button class="toggle" id="loadImgBtn">Load images…</button>
+  <button class="toggle" id="settingsBtn" title="Cài đặt — Release checklist · Export · Import · Runners">⚙ Settings</button>
   <span class="dz-hint">⤵ or drag images / a folder anywhere</span>
   <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
   <input type="file" id="imgInput" accept="image/*" multiple webkitdirectory class="hidden">
@@ -473,6 +501,48 @@
       <button id="cfgTestEnv" class="hidden">🔌 Test keys</button>
       <button id="cfgSaveEnv" class="primary hidden">💾 Save .env to local</button>
       <button id="cfgCancel">Close</button>
+    </div>
+  </div>
+</div>
+<div class="diff-overlay hidden" id="settingsOverlay">
+  <div class="diff-modal set-modal">
+    <div class="diff-head"><h2>⚙ Cài đặt</h2><button id="settingsClose" aria-label="Close">✕</button></div>
+    <div class="diff-body">
+      <div class="set-list" id="setList">
+        <button class="toggle" id="checklistBtn">📋 Release checklist</button>
+        <button class="toggle" id="exportBtn">⤓ Export</button>
+        <button class="toggle" id="loadBtn">⤒ Import</button>
+        <button class="toggle" id="runnersBtn" title="Quản lý máy (runner) để SSH gửi task chạy — lưu cục bộ trong trình duyệt">🖥 Runners</button>
+      </div>
+    </div>
+    <div class="diff-foot"><span class="diff-summary"></span><button id="settingsCancel">Đóng</button></div>
+  </div>
+</div>
+<div class="diff-overlay hidden" id="runnerOverlay">
+  <div class="diff-modal">
+    <div class="diff-head"><h2>Runners — máy chạy task (SSH)</h2><button id="runnerClose" aria-label="Close">✕</button></div>
+    <div class="diff-body">
+      <div class="rn-note">⚠️ Thông tin (kể cả mật khẩu) lưu <b>cục bộ trong trình duyệt này</b> (localStorage) ở dạng plaintext, không gửi đi đâu. Chỉ dùng trên máy tin cậy.</div>
+      <div class="rn-list" id="rnList"></div>
+      <form class="rn-form" id="rnForm" autocomplete="off">
+        <input type="hidden" id="rnId">
+        <div class="rn-grid">
+          <label>Tên<input id="rnName" placeholder="vd: Mac mini CI" required></label>
+          <label>Host / IP<input id="rnHost" placeholder="192.168.1.50" required></label>
+          <label>Port (SSH)<input id="rnPort" type="number" min="1" max="65535" placeholder="22" value="22"></label>
+          <label>Username<input id="rnUser" placeholder="builder" required></label>
+          <label>Password<input id="rnPass" type="password" placeholder="••••••" autocomplete="new-password"></label>
+        </div>
+        <div class="rn-formfoot">
+          <span class="rn-msg" id="rnMsg"></span>
+          <button type="button" id="rnReset">Làm mới</button>
+          <button type="submit" class="primary" id="rnSave">＋ Thêm máy</button>
+        </div>
+      </form>
+    </div>
+    <div class="diff-foot">
+      <span class="diff-summary" id="rnCount"></span>
+      <button id="rnCancel">Đóng</button>
     </div>
   </div>
 </div>
@@ -1184,6 +1254,115 @@ $('inlineBtn').onclick=()=>{
   $('loadBtn').onclick=()=>openCfg('import');      // "Import"
 })();
 
+// Runners — manage machines (SSH info: host/port/user/password) used to send a
+// task to run. CRUD only; stored locally in THIS browser (localStorage), nothing
+// is sent anywhere. `window.spActiveRunner()` exposes the chosen machine so a
+// later SSH/task feature can wire onto it.
+(function(){
+  const RN_KEY='sp-runners-v1';
+  const ov=$('runnerOverlay'), listEl=$('rnList'), form=$('rnForm'), countEl=$('rnCount'),
+        msg=$('rnMsg'), saveBtn=$('rnSave'),
+        f={id:$('rnId'),name:$('rnName'),host:$('rnHost'),port:$('rnPort'),user:$('rnUser'),pass:$('rnPass')};
+  const load=()=>{ try{ const s=JSON.parse(localStorage.getItem(RN_KEY)||'{}');
+      return {runners:Array.isArray(s.runners)?s.runners:[], activeId:s.activeId||''}; }
+    catch(_){ return {runners:[],activeId:''}; } };
+  const save=s=>{ try{ localStorage.setItem(RN_KEY,JSON.stringify(s)); }catch(_){}};
+  let state=load();
+  const setMsg=t=>{ msg.textContent=t||''; };
+  function resetForm(){ form.reset(); f.id.value=''; f.port.value='22'; saveBtn.textContent='＋ Thêm máy'; setMsg(''); }
+  function editRunner(id){
+    const r=state.runners.find(x=>x.id===id); if(!r) return;
+    f.id.value=r.id; f.name.value=r.name||''; f.host.value=r.host||''; f.port.value=r.port||'22';
+    f.user.value=r.user||''; f.pass.value=r.pass||'';
+    saveBtn.textContent='💾 Lưu thay đổi'; setMsg('Đang sửa “'+r.name+'”'); f.name.focus();
+  }
+  function delRunner(id){
+    const r=state.runners.find(x=>x.id===id); if(!r) return;
+    if(!confirm('Xóa máy “'+r.name+'”?')) return;
+    state.runners=state.runners.filter(x=>x.id!==id);
+    if(state.activeId===id) state.activeId='';
+    save(state); render(); toast('Đã xóa '+r.name);
+    if(f.id.value===id) resetForm();
+  }
+  const setActive=id=>{ state.activeId=(state.activeId===id?'':id); save(state); render(); };
+  let iosConn=null;   // host string when an SSH connection for remote iOS is live
+  function render(){
+    const rs=state.runners;
+    countEl.textContent = rs.length ? (rs.length+' máy'+(state.activeId?' · 1 đang chọn':'')) : '';
+    const banner = iosConn ? '<div class="rn-conn">🟢 iOS đang kết nối: <b>'+esc(iosConn)+'</b><button id="rnDisc">Ngắt</button></div>' : '';
+    listEl.innerHTML = banner + (rs.length ? '' : '<div class="rn-empty">Chưa có máy nào — thêm bên dưới.</div>');
+    if(iosConn){ const d=$('rnDisc'); if(d) d.onclick=disconnectIos; }
+    rs.forEach(r=>{
+      const row=document.createElement('div'); row.className='rn-row'+(r.id===state.activeId?' active':'');
+      row.innerHTML=
+        '<div class="rn-main"><div class="rn-name">'+esc(r.name)+(r.id===state.activeId?' <span class="rn-badge">▶ active</span>':'')+'</div>'+
+        '<div class="rn-sub">'+esc(r.user||'')+'@'+esc(r.host||'')+':'+esc(String(r.port||22))+(r.pass?' · 🔒':'')+'</div></div>'+
+        '<button data-act="ios" title="SSH vào máy này và mở mirror/điều khiển iOS simulator">📱 iOS</button>'+
+        '<button data-act="active">'+(r.id===state.activeId?'Bỏ chọn':'Chọn')+'</button>'+
+        '<button data-act="edit">Sửa</button>'+
+        '<button data-act="del">Xóa</button>';
+      row.querySelector('[data-act=ios]').onclick=()=>connectIos(r);
+      row.querySelector('[data-act=active]').onclick=()=>setActive(r.id);
+      row.querySelector('[data-act=edit]').onclick=()=>editRunner(r.id);
+      row.querySelector('[data-act=del]').onclick=()=>delRunner(r.id);
+      listEl.appendChild(row);
+    });
+  }
+  async function connectIos(r){
+    setMsg('Đang SSH tới '+r.host+'…');
+    try{
+      const res=await (await fetch('/api/ios/connect',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({host:r.host,port:r.port,user:r.user,pass:r.pass})})).json();
+      if(!res.ok){ setMsg('✗ '+(res.error||'kết nối thất bại')); iosConn=null; render(); return; }
+      iosConn=res.host||r.host;
+      const sims=(res.ios&&res.ios.sims)||[];
+      toast('Đã kết nối '+iosConn+' — '+sims.length+' simulator');
+      render();
+      close();
+      if(window.spOpenIphone) window.spOpenIphone();   // open the iOS Preview tab → mirror the Mac
+    }catch(e){ setMsg('✗ Lỗi: '+e.message); }
+  }
+  async function disconnectIos(){
+    try{ await fetch('/api/ios/disconnect',{method:'POST'}); }catch(e){}
+    iosConn=null; toast('Đã ngắt kết nối iOS'); render();
+  }
+  function syncConn(){ fetch('/api/ios/remote').then(r=>r.json()).then(d=>{ iosConn=(d&&d.connected)?d.host:null; render(); }).catch(()=>{}); }
+  form.onsubmit=e=>{
+    e.preventDefault();
+    const name=f.name.value.trim(), host=f.host.value.trim(), user=f.user.value.trim();
+    if(!name||!host||!user){ setMsg('Cần nhập Tên, Host và Username'); return; }
+    let port=parseInt(f.port.value,10); if(!(port>=1&&port<=65535)) port=22;
+    const data={name,host,port,user,pass:f.pass.value};
+    const id=f.id.value;
+    if(id){ const r=state.runners.find(x=>x.id===id); if(r) Object.assign(r,data); toast('Đã lưu '+name); }
+    else { data.id='rn-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+           state.runners.push(data); toast('Đã thêm '+name); }
+    save(state); render(); resetForm();
+  };
+  $('rnReset').onclick=resetForm;
+  const open=()=>{ state=load(); resetForm(); render(); ov.classList.remove('hidden'); syncConn(); };
+  const close=()=>ov.classList.add('hidden');
+  $('runnersBtn').onclick=open;
+  $('runnerClose').onclick=close; $('rnCancel').onclick=close;
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  // Expose the chosen machine for a future SSH/task-runner feature to consume.
+  window.spActiveRunner=()=>{ const s=load(); return s.runners.find(r=>r.id===s.activeId)||null; };
+})();
+
+// Settings dialog — holds the moved toolbar actions (Release checklist, Export,
+// Import, Runners). The buttons themselves were relocated here keeping their IDs,
+// so their original handlers still fire; we just open/close this dialog and close
+// it whenever one of the actions is triggered (each opens its own panel/dialog).
+(function(){
+  const ov=$('settingsOverlay');
+  const open=()=>ov.classList.remove('hidden');
+  const close=()=>ov.classList.add('hidden');
+  $('settingsBtn').onclick=open;
+  $('settingsClose').onclick=close; $('settingsCancel').onclick=close;
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  $('setList').addEventListener('click', e=>{ if(e.target.closest('button')) close(); });
+})();
+
 // Append ?v=<token> to every local image path so the browser refetches freshly
 // synced files (same filename, new bytes) instead of serving a stale cache.
 function bustImages(obj, token){
@@ -1487,6 +1666,7 @@ window.__dragHint = function(show){
     openTab(tab);
   }
   rail.querySelectorAll('.rb[data-pp]').forEach(b=>b.onclick=()=>show(b.dataset.pp));
+  window.spOpenIphone=()=>openTab('iphone');   // used by the Runners dialog after SSH connect
   document.getElementById('ppClose').onclick=closePanel;
   document.getElementById('ppClose2').onclick=closePanel;
   popBtn.onclick=()=>{ if(lastTarget) window.open(lastTarget,'_blank'); };
@@ -1914,9 +2094,15 @@ window.__dragHint = function(show){
   function startIosLive(){
     if(!iosUdid){ paintIosHint('Pick a device.'); return; }
     iosLive=true; const gen=++iosGen; const im=ensureIosImg(); if(!im) return; setIosLiveBtn(true);
+    // Simulators (and anything reached over a remote SSH tunnel) don't serve a
+    // usable MJPEG stream — WDA's :9100 returns HTML there and the <img> would
+    // hang with no load/error event (blank screen). Use screenshot polling, which
+    // works via simctl/WDA screenshot. MJPEG stays for real devices over USB.
+    if(iosIsSim(iosUdid)){ iosPoll(gen); return; }
     let fellBack=false;
     im.onload=null;
-    im.onerror=()=>{ if(gen!==iosGen) return;
+    let guard=setTimeout(()=>{ if(gen===iosGen && !fellBack){ fellBack=true; iosPoll(gen); } }, 2500); // MJPEG stalled → fall back
+    im.onerror=()=>{ if(gen!==iosGen) return; clearTimeout(guard);
       if(!fellBack){ fellBack=true; iosPoll(gen); }          // MJPEG failed → screenshot polling
       else { iosLive=false; setIosSt('⚠️ stream error'); setIosLiveBtn(false); } };
     im.src='/api/wda/mjpeg?udid='+encodeURIComponent(iosUdid)+'&t='+Date.now();   // live MJPEG

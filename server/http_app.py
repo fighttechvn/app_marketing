@@ -6,7 +6,7 @@ served on 0.0.0.0 / the LAN.
 """
 import os, sys, json, http.server, urllib.parse
 from . import context
-from . import stores, project, android, ios, preview, logs
+from . import stores, project, android, ios, preview, logs, remote
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -136,6 +136,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         # ---- Preview panel: iOS (WebDriverAgent) ----
+        if route == "/api/ios/remote":
+            # Status of the SSH connection to a Mac runner (for remote iOS control).
+            try: self._json(200, {"ok": True, **remote.status()})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
         if route == "/api/wda/devices":
             try: self._json(200, ios.ios_devices())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
@@ -200,6 +205,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         if route == "/api/wda/launch":
             try: self._json(200, ios.ios_launch(self._json_body().get("udid") or None))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/ios/connect":
+            # Open an SSH connection to a Mac runner so iOS control routes there.
+            # Body: {host, port, user, pass} (sent from the Runners dialog).
+            try:
+                b = self._json_body()
+                if not remote.available():
+                    self._json(200, {"ok": False, "error": "SSH support (paramiko) not installed on the server"})
+                    return
+                remote.connect(b.get("host"), b.get("port") or 22, b.get("user"), b.get("pass") or "")
+                # report what the Mac offers (simctl available + simulator list)
+                self._json(200, {"ok": True, **remote.status(), "ios": ios.ios_devices()})
+            except Exception as e:
+                self._json(200, {"ok": False, "error": str(e)[:200]})
+            return
+        if route == "/api/ios/disconnect":
+            try: remote.disconnect(); self._json(200, {"ok": True, **remote.status()})
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         if route == "/api/test":

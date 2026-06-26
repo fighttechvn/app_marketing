@@ -1,11 +1,41 @@
 #!/usr/bin/env bash
 #
 # Full macOS build: icons → Python sidecar → Tauri .app/.dmg.
-# Output: src-tauri/target/release/bundle/dmg/*.dmg
+#
+#   build.sh                 build for the host arch (default — unchanged for CI)
+#   build.sh arm64           build the Apple-Silicon slice  (aarch64-apple-darwin)
+#   build.sh intel           build the Intel slice          (x86_64-apple-darwin)
+#   build.sh --target <triple>
+#
+# Output (host):   src-tauri/target/release/bundle/dmg/*.dmg
+# Output (target): src-tauri/target/<triple>/release/bundle/dmg/*.dmg
 set -euo pipefail
 cd "$(dirname "$0")/.."                      # → desktop/
 ROOT="$(cd .. && pwd)"
-TRIPLE="$(rustc -vV 2>/dev/null | awk '/host/{print $2}')"
+
+# Optional cross-target. No arg → native host build (what CI uses).
+TARGET_TRIPLE=""
+case "${1:-}" in
+  "")                                       ;;
+  --target)        TARGET_TRIPLE="${2:-}"   ;;
+  arm64|aarch64|aarch64-apple-darwin)  TARGET_TRIPLE="aarch64-apple-darwin" ;;
+  intel|x86_64|x64|x86_64-apple-darwin) TARGET_TRIPLE="x86_64-apple-darwin" ;;
+  *) echo "✗ unknown target '$1' — use: arm64 | intel | --target <triple>"; exit 1 ;;
+esac
+
+HOST_TRIPLE="$(rustc -vV 2>/dev/null | awk '/host/{print $2}')"
+TRIPLE="${TARGET_TRIPLE:-$HOST_TRIPLE}"      # arch the sidecar + app are built for
+if [ -n "$TARGET_TRIPLE" ]; then
+  export TARGET_TRIPLE                       # build-sidecar.sh reads this
+  BUNDLE="src-tauri/target/$TARGET_TRIPLE/release/bundle"
+  # Make sure the Rust std for the target is present (e.g. Intel on Apple Silicon).
+  if command -v rustup >/dev/null 2>&1 && ! rustup target list --installed 2>/dev/null | grep -qx "$TARGET_TRIPLE"; then
+    echo "→ adding rust target $TARGET_TRIPLE"; rustup target add "$TARGET_TRIPLE"
+  fi
+else
+  BUNDLE="src-tauri/target/release/bundle"
+fi
+echo "→ building for: $TRIPLE"
 
 # 0) Load signing config (.signing/signing.env) if present → sign + notarize.
 abspath() { case "$1" in /*) echo "$1";; *) echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")";; esac; }
@@ -56,9 +86,21 @@ if [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ -n "$TRIPLE" ]; then
 fi
 
 # 3) Tauri build → .app + .dmg (signs + notarizes when the signing env is set).
+#    Pass --target only for an explicit cross-build so the default host build is
+#    byte-for-byte what CI runs.
+#
+#    CI=true makes Tauri's bundle_dmg.sh skip the Finder/AppleScript layout step —
+#    that step needs GUI automation access and fails in a headless/background/SSH
+#    shell (leaving a leftover rw.*.dmg). GitHub Actions sets CI automatically; set
+#    it here too so local builds package the .dmg the same way. Honor a preset CI.
+export CI="${CI:-true}"
 npm install
-npx --yes @tauri-apps/cli build
+if [ -n "$TARGET_TRIPLE" ]; then
+  npx --yes @tauri-apps/cli build --target "$TARGET_TRIPLE"
+else
+  npx --yes @tauri-apps/cli build
+fi
 
 echo
 echo "✓ Done. DMG:"
-ls -1 src-tauri/target/release/bundle/dmg/*.dmg 2>/dev/null || echo "  (check src-tauri/target/release/bundle/)"
+ls -1 "$BUNDLE"/dmg/*.dmg 2>/dev/null || echo "  (check $BUNDLE/)"

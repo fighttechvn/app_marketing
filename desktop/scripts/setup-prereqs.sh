@@ -22,6 +22,9 @@ echo "→ Node deps (Tauri CLI is pulled via npx)"
 cat <<'EOF'
 
 ✓ Prereqs ready. Build with:
-    cd desktop && bash scripts/build.sh
-Output: src-tauri/target/release/bundle/dmg/*.dmg
+    cd desktop && bash scripts/build.sh           # native (host) arch
+Publish to a GitHub Release (builds the native slice; the other arch comes from CI):
+    cd desktop && ./deploy.sh
+Note: the Intel slice is built by CI (push to uat → macos-13); it can't be
+cross-built on Apple Silicon (Python crypto deps need a native x86_64 toolchain).
 EOF

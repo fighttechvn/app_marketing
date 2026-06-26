@@ -4,7 +4,7 @@ Binds localhost only — /api/env and /api/sync expose store credentials, and th
 adb/WDA/preview endpoints shell out / read local files, so this must never be
 served on 0.0.0.0 / the LAN.
 """
-import os, json, http.server, urllib.parse
+import os, sys, json, http.server, urllib.parse
 from . import context
 from . import stores, project, android, ios, preview
 
@@ -183,6 +183,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 def run():
+    # On Windows the console defaults to cp1252, which can't encode the "→" in the
+    # log line below — an unhandled UnicodeEncodeError there would kill the server
+    # right after it binds. Force UTF-8 stdout/stderr so logging never crashes it.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     # PORT=0 lets the OS pick a free port (used by the desktop sidecar, which reads
     # the actual port from stdout).
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", context.PORT), Handler)

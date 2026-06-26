@@ -2078,6 +2078,16 @@ window.__dragHint = function(show){
       '<div class="sc-meta"><div class="sc-name">'+esc(file)+'</div>'+
       '<div class="sc-hint">'+(shotFile?'⤴ Kéo vào slot ảnh listing':'Đã lưu')+'</div></div>';
     document.body.appendChild(card);
+    // Show the card right BESIDE the control panel's screen-view frame (to its
+    // left), aligned with the live frame — not floating over in the page corner.
+    const panel=document.getElementById('ppPanel');
+    if(panel && panel.classList.contains('open') && !panel.classList.contains('pp-bottom')){
+      const pr=panel.getBoundingClientRect();
+      const scr=panel.querySelector('.scr'), sr=scr?scr.getBoundingClientRect():pr;
+      card.style.left='auto'; card.style.bottom='auto';
+      card.style.right=(window.innerWidth - pr.left + 14)+'px';
+      card.style.top=Math.round(Math.min(Math.max(sr.top, 70), window.innerHeight-330))+'px';
+    }
     const arm=()=>{ clearTimeout(shotTimer); shotTimer=setTimeout(()=>card.remove(),5000); };
     arm();
     card.addEventListener('mouseenter',()=>clearTimeout(shotTimer));
@@ -2250,8 +2260,9 @@ window.__dragHint = function(show){
     if(!andSerial){ setSt('⚠️ no device — connect one first'); return; }
     setSt('📦 installing APK…');
     try{ const d=await postBuild('/api/adb/install','serial',andSerial,src);
-      setSt(d.ok?'<b>installed ✓</b>':'⚠️ '+(d.error||'install failed'));
-      if(d.ok && !andLive) setTimeout(snap,500);
+      setSt(d.ok?('<b>installed ✓</b>'+(d.launched?' · đã mở app':'')+(d.package?' · '+esc(d.package):''))
+                :'⚠️ '+(d.error||'install failed'));
+      if(d.ok && !andLive) setTimeout(snap,900);   // give the launched app a moment, then refresh the frame
     }catch(e){ setSt('⚠️ '+e); }
   }
   async function captureAndroid(){

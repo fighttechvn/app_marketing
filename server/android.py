@@ -4,8 +4,8 @@ Localhost-only server, so shelling out to adb/scrcpy is acceptable (no LAN
 exposure). Gesture coordinates are device PIXELS — the frontend maps clicks via
 the screenshot's natural size.
 """
-import os, time, shutil, subprocess
-from .util import find_bin, have, exe_path
+import os, re, time, shutil, subprocess
+from .util import find_bin, have, exe_path, run
 from . import config
 
 ADB = find_bin("adb", "ADB_BIN")
@@ -17,6 +17,43 @@ SCRCPY = find_bin("scrcpy", "SCRCPY_BIN")
 def adb_bin():      return config.get("adb") or ADB
 def scrcpy_bin():   return config.get("scrcpy") or SCRCPY
 def emulator_bin(): return config.get("emulator") or EMULATOR
+def aapt_bin():     return config.get("aapt") or _find_aapt()
+
+
+# aapt lives in <sdk>/build-tools/<ver>/aapt(.exe) — used to read an APK's package
+# name + launchable activity so we can auto-open the app after installing it.
+def _find_aapt():
+    env = os.environ.get("AAPT_BIN")
+    if env and exe_path(env):
+        return exe_path(env)
+    roots = [os.environ.get("ANDROID_HOME"), os.environ.get("ANDROID_SDK_ROOT")]
+    if "platform-tools" in (ADB or ""):
+        roots.append(os.path.dirname(os.path.dirname(ADB)))   # <sdk>/platform-tools/adb → <sdk>
+    home = os.path.expanduser("~")
+    roots += [os.path.join(home, "Library/Android/sdk"), os.path.join(home, "Android/Sdk")]
+    for r in roots:
+        bt = os.path.join(r, "build-tools") if r else ""
+        if bt and os.path.isdir(bt):
+            for ver in sorted(os.listdir(bt), reverse=True):     # newest build-tools first
+                for tool in ("aapt2", "aapt"):
+                    hit = exe_path(os.path.join(bt, ver, tool))
+                    if hit:
+                        return hit
+    return shutil.which("aapt2") or shutil.which("aapt") or ""
+
+
+def apk_package(path):
+    """(package, launchable_activity) from `aapt dump badging` — ('', '') if unknown."""
+    aapt = aapt_bin()
+    if not have(aapt):
+        return "", ""
+    try:
+        out, _, rc = run([aapt, "dump", "badging", path], timeout=30)
+    except Exception:
+        return "", ""
+    pkg = re.search(r"package: name='([^']+)'", out or "")
+    act = re.search(r"launchable-activity: name='([^']+)'", out or "")
+    return (pkg.group(1) if pkg else ""), (act.group(1) if act else "")
 
 # The `emulator` binary lives in <sdk>/emulator — NOT platform-tools, and NOT the
 # legacy <sdk>/tools/emulator (a deprecated x86 stub that crashes on Apple
@@ -97,7 +134,18 @@ def adb_install(serial, path):
     msg = (out or "") + (err or "")
     if rc != 0 or "Failure" in msg or "Error" in msg:
         return {"ok": False, "error": (msg.strip() or "install failed")[:300]}
-    return {"ok": True, "out": (out.strip() or "Success")[:200]}
+    # Auto-open the freshly installed app (best-effort — needs aapt to read the
+    # package + launchable activity; silently skipped if aapt isn't available).
+    pkg, act = apk_package(path)
+    launched = False
+    if pkg:
+        if act:
+            _adb(["shell", "am", "start", "-n", "%s/%s" % (pkg, act)], serial=serial, timeout=20)
+        else:
+            _adb(["shell", "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"],
+                 serial=serial, timeout=20)
+        launched = True
+    return {"ok": True, "out": (out.strip() or "Success")[:200], "package": pkg, "launched": launched}
 
 
 def adb_capture(serial, dest_dir):

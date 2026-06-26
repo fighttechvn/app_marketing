@@ -195,7 +195,7 @@ def delete_runner(rid):
 # whole app config lives in one place. The device modules (android/ios) read an
 # override via get(); blank means "auto-detect on PATH/SDK".
 _K_PATHS = "paths"
-PATH_KEYS = ("adb", "scrcpy", "emulator", "iproxy", "go_ios", "wda_project", "screenshot_dir")
+PATH_KEYS = ("adb", "aapt", "scrcpy", "emulator", "iproxy", "go_ios", "wda_project", "screenshot_dir")
 
 
 def _paths_doc():
@@ -254,6 +254,8 @@ def paths_dump():
     tools = [
         row("adb", "adb (Android Debug Bridge)", android.adb_bin(),
             "Mirror + điều khiển Android, cài APK (adb install)"),
+        row("aapt", "aapt / aapt2 (Android build-tools)", android.aapt_bin(),
+            "Đọc package name của APK để tự mở app sau khi cài"),
         row("scrcpy", "scrcpy", android.scrcpy_bin(),
             "Cửa sổ mirror native tốc độ cao"),
         row("emulator", "Android emulator", android.emulator_bin(),

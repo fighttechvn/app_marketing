@@ -1063,7 +1063,10 @@ const CL_KEY='store-release-checklist-v1';
 const TAGLBL={web:'WEB UI',dec:'DECLARATION',api:'API'};
 let showChecklist=false;
 function clState(){ try{return JSON.parse(localStorage.getItem(CL_KEY)||'{}');}catch(_){return {};} }
-function clSave(s){ try{localStorage.setItem(CL_KEY,JSON.stringify(s));}catch(_){}}
+function clSave(s){ try{localStorage.setItem(CL_KEY,JSON.stringify(s));}catch(_){}
+  // mirror the checklist into the server config (~/.apppreview) as an app setting
+  try{ fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({settings:{checklist:s}})}).catch(()=>{}); }catch(_){} }
 function renderChecklist(){
   const saved=clState(); let total=0, done=0;
   const groups=CHECKLIST.map((g,gi)=>{
@@ -1297,11 +1300,33 @@ $('inlineBtn').onclick=()=>{
         msg=$('rnMsg'), saveBtn=$('rnSave'),
         f={id:$('rnId'),name:$('rnName'),host:$('rnHost'),port:$('rnPort'),user:$('rnUser'),pass:$('rnPass'),
            key:$('rnKey'),passphrase:$('rnPassphrase')};
+  const LSsave=s=>{ try{ localStorage.setItem(RN_KEY,JSON.stringify(s)); }catch(_){} };
   const load=()=>{ try{ const s=JSON.parse(localStorage.getItem(RN_KEY)||'{}');
       return {runners:Array.isArray(s.runners)?s.runners:[], activeId:s.activeId||''}; }
     catch(_){ return {runners:[],activeId:''}; } };
-  const save=s=>{ try{ localStorage.setItem(RN_KEY,JSON.stringify(s)); }catch(_){}};
+  // Persist to the server config (~/.apppreview) AND keep a localStorage cache so
+  // the list survives reloads, is shared across browsers, and works offline.
+  const save=s=>{ LSsave(s);
+    try{ fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({runners:s.runners,activeId:s.activeId})}).catch(()=>{}); }catch(_){}
+  };
   let state=load();
+  // The server config is the source of truth: adopt it on open. If the server has
+  // no runners yet but this browser does, migrate the local list up once. Also
+  // hydrate the release checklist (an app setting) from the same config.
+  (function syncFromServer(){
+    fetch('/api/config').then(r=>r.ok?r.json():null).then(d=>{
+      if(!d||!d.ok) return;
+      const sr=Array.isArray(d.runners)?d.runners:[];
+      if(sr.length===0 && state.runners.length>0){ save(state); }
+      else { state={runners:sr, activeId:d.activeId||''}; LSsave(state);
+             if(typeof render==='function') render(); }
+      if(d.settings && d.settings.checklist){
+        try{ localStorage.setItem(CL_KEY, JSON.stringify(d.settings.checklist)); }catch(_){}
+        if(typeof renderChecklist==='function') renderChecklist();
+      }
+    }).catch(()=>{});
+  })();
   const setMsg=t=>{ msg.textContent=t||''; };
   // auth method: password vs SSH key (toggles which fields show)
   let authType='password';

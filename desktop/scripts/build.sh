@@ -88,6 +88,12 @@ fi
 # 3) Tauri build → .app + .dmg (signs + notarizes when the signing env is set).
 #    Pass --target only for an explicit cross-build so the default host build is
 #    byte-for-byte what CI runs.
+#
+#    CI=true makes Tauri's bundle_dmg.sh skip the Finder/AppleScript layout step —
+#    that step needs GUI automation access and fails in a headless/background/SSH
+#    shell (leaving a leftover rw.*.dmg). GitHub Actions sets CI automatically; set
+#    it here too so local builds package the .dmg the same way. Honor a preset CI.
+export CI="${CI:-true}"
 npm install
 if [ -n "$TARGET_TRIPLE" ]; then
   npx --yes @tauri-apps/cli build --target "$TARGET_TRIPLE"

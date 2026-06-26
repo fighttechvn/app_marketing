@@ -227,11 +227,13 @@
   .pp-and .tools button.live,.pp-log .tools button.live{background:#1a9c54}
   .pp-and .tools button.accent{background:#0b7bff;color:#fff;font-weight:600}
   .pp-and .tools button.accent:hover{background:#2f93ff}
-  /* drag-a-build-onto-the-frame affordance (drop .apk / .ipa / .app to install) */
-  .pp-and .scr .dz-build{position:absolute;inset:8px;border:2px dashed #0b7bff;border-radius:16px;
-    background:rgba(11,123,255,.14);display:none;align-items:center;justify-content:center;pointer-events:none;z-index:6}
-  .pp-and .scr.dz-build-on .dz-build{display:flex}
-  .pp-and .scr .dz-build-in{color:#dbecff;font-size:14px;font-weight:700;background:rgba(0,0,0,.55);padding:9px 15px;border-radius:10px}
+  /* drag-a-build-onto-the-frame affordance (drop .apk / .ipa / .app to install).
+     A ::after overlay (not a child node) so it survives the live mirror wiping
+     the frame's innerHTML when it swaps in the <img>. */
+  .pp-and .scr.dz-build-on::after{content:'⤓ Thả để cài đặt';position:absolute;inset:8px;
+    border:2px dashed #0b7bff;border-radius:16px;background:rgba(11,123,255,.18);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;
+    text-shadow:0 1px 4px rgba(0,0,0,.6);pointer-events:none;z-index:6}
   /* floating captured-screenshot card — draggable into a listing slot, auto-hides */
   .shot-card{position:fixed;left:24px;bottom:24px;z-index:350;width:152px;background:#161618;border:1px solid #2a2a2c;
     border-radius:12px;box-shadow:0 14px 44px rgba(0,0,0,.5);padding:8px;cursor:grab;animation:scIn .18s ease}
@@ -2106,7 +2108,7 @@ window.__dragHint = function(show){
         <button id="andBoot" title="Boot the selected emulator (AVD)">▶ Boot</button>
         <span class="st" id="andSt"></span>
       </div>
-      <div class="scr" id="andScr"><div class="nodev">Connect a device with USB debugging,<br>then press ⟳.<br><span style="opacity:.6">Kéo file .apk vào đây để cài đặt.</span></div><div class="dz-build"><div class="dz-build-in">⤓ Thả .apk để cài đặt</div></div></div>
+      <div class="scr" id="andScr"><div class="nodev">Connect a device with USB debugging,<br>then press ⟳.<br><span style="opacity:.6">Kéo file .apk vào đây để cài đặt.</span></div></div>
       <div class="navbar">
         <button data-key="recents" title="Recent apps">▭</button>
         <button data-key="home" title="Home">○</button>
@@ -2280,7 +2282,7 @@ window.__dragHint = function(show){
         <button id="iosHelp" title="Setup help — how to launch WebDriverAgent">ⓘ Setup</button>
         <span class="st" id="iosSt"></span>
       </div>
-      <div class="scr" id="iosScr"><div class="nodev">Connect an iPhone &amp; launch WebDriverAgent,<br>then press ⟳.<br><span style="opacity:.6">Kéo file .ipa/.app vào đây để cài đặt.</span></div><div class="dz-build"><div class="dz-build-in">⤓ Thả .ipa/.app để cài đặt</div></div></div>
+      <div class="scr" id="iosScr"><div class="nodev">Connect an iPhone &amp; launch WebDriverAgent,<br>then press ⟳.<br><span style="opacity:.6">Kéo file .ipa/.app vào đây để cài đặt.</span></div></div>
       <div class="navbar">
         <button data-act="home" title="Home">○</button>
         <button data-act="voldown" title="Volume −">🔉</button>

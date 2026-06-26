@@ -449,6 +449,24 @@ def ios_mjpeg_open(udid):
     return urllib.request.urlopen(WDA_MJPEG + "/", timeout=10)
 
 
+def _wda_tap(sid, x, y):
+    """Tap at absolute coords. WDA's legacy /wda/tap/0 is gone on newer builds
+    (iOS 18+/26 → HTTP 500), so use the W3C pointer-actions API; fall back to a
+    zero-length drag (the same /dragfromtoforduration that swipe uses)."""
+    try:
+        _wda("POST", "/session/%s/actions" % sid, {"actions": [{
+            "type": "pointer", "id": "finger1", "parameters": {"pointerType": "touch"},
+            "actions": [
+                {"type": "pointerMove", "duration": 0, "x": x, "y": y},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pause", "duration": 60},
+                {"type": "pointerUp", "button": 0},
+            ]}]})
+    except Exception:
+        _wda("POST", "/session/%s/wda/dragfromtoforduration" % sid,
+             {"fromX": x, "fromY": y, "toX": x, "toY": y, "duration": 0.05})
+
+
 def ios_input(body):
     udid = _ios_default(body.get("udid") or None)
     _ios_tunnel(udid)
@@ -458,7 +476,7 @@ def ios_input(body):
         return {"ok": True}
     sid = _wda_session(udid)
     if act == "tap":
-        _wda("POST", "/session/%s/wda/tap/0" % sid, {"x": float(body["x"]), "y": float(body["y"])})
+        _wda_tap(sid, float(body["x"]), float(body["y"]))
     elif act == "swipe":
         _wda("POST", "/session/%s/wda/dragfromtoforduration" % sid,
              {"fromX": float(body["x1"]), "fromY": float(body["y1"]),

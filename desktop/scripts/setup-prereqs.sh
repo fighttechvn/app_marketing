@@ -13,7 +13,8 @@ if ! command -v rustc >/dev/null 2>&1; then
 fi
 
 echo "→ Python deps + PyInstaller"
-python3 -m pip install --upgrade pyinstaller pyjwt cryptography \
+python3 -m pip install --upgrade pyinstaller pyjwt cryptography paramiko \
+  ruamel.yaml pyyaml \
   google-api-python-client google-auth google-auth-httplib2
 
 echo "→ Node deps (Tauri CLI is pulled via npx)"

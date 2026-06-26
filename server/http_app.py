@@ -6,7 +6,7 @@ served on 0.0.0.0 / the LAN.
 """
 import os, sys, json, http.server, urllib.parse, socket, getpass
 from . import context
-from . import stores, project, android, ios, preview, logs, remote
+from . import stores, project, android, ios, preview, logs, remote, config
 
 
 def host_info():
@@ -177,6 +177,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try: self._json(200, host_info())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
+        if route == "/api/config":
+            # App config from ~/.apppreview: {runners, activeId, settings}.
+            try: self._json(200, {"ok": True, **config.get_state()})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
         if route == "/api/wda/devices":
             try: self._json(200, ios.ios_devices())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
@@ -204,6 +209,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         route = self.path.split("?")[0]
+        if route == "/api/config":
+            # Save the app-managed slice into ~/.apppreview (preserves other keys).
+            # Body: {runners?, activeId?, settings?} — only present keys are written.
+            try: self._json(200, {"ok": True, **config.save_state(self._json_body())})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)[:200]})
+            return
+        if route == "/api/config/runner":
+            # Add (no id) or update (with id) one runner. Body = the runner record.
+            try: self._json(200, {"ok": True, "runner": config.upsert_runner(self._json_body())})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)[:200]})
+            return
+        if route == "/api/config/runner/delete":
+            # Delete a runner by id. Body: {"id": "..."}.
+            try: self._json(200, {"ok": True, **config.delete_runner(self._json_body().get("id"))})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)[:200]})
+            return
         if route == "/api/open":
             # Switch the active project folder; body = {"path": "..."}.
             try: self._json(200, project.open_folder(self._json_body().get("path", "")))

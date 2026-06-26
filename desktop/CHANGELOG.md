@@ -4,6 +4,44 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
 `desktop-v<version>` and published to
 [GitHub Releases](https://github.com/fighttechvn/app_marketing/releases).
 
+## 0.4.6 — 2026-06-26
+
+**Remote iOS device control + Runners.**
+
+### Added
+- **Remote iOS control over SSH.** Drive a physical iPhone/iPad attached to
+  another machine straight from the Playground — tap, swipe and mirror over an
+  SSH connection to a "runner" host. A Runners/Settings dialog adds hosts, picks
+  password or SSH-key auth, and tests the connection before use.
+- **Runner sharing.** Export/import the runner list as JSON, plus an
+  "Initial Runner" action that shares the current machine's SSH config as JSON
+  so another operator can import it in one step.
+
+### Fixed
+- iOS 26: remote tap now uses W3C pointer actions (the legacy `/wda/tap/0`
+  endpoint returns 500 there).
+- Android: the emulator launch resolves the modern emulator `.exe` on Windows
+  instead of the legacy path.
+- Toolbar: the Settings gear is pinned to the top-right and the preview rail no
+  longer overlaps it; all controls stay on one line.
+- Windows: the server no longer crashes at startup on a non-UTF-8 console.
+
+## 0.4.5 — 2026-06-26
+
+**Build-pipeline maintenance.**
+
+### Changed
+- Multi-arch aware local build/publish scripts; set `CI=true` for local `.dmg`
+  packaging so it matches CI (no functional app changes).
+
+## 0.4.4 — 2026-06-26
+
+**Build-pipeline maintenance.**
+
+### Changed
+- Build a separate Intel (x86_64) macOS `.dmg` alongside the Apple-Silicon
+  slice (no functional app changes).
+
 ## 0.4.3 — 2026-06-26
 
 **Ships the Windows launch fix to users.**

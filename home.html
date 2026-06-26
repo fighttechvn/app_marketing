@@ -40,6 +40,25 @@
   .btn{padding:12px 24px;border-radius:10px;font-weight:600;border:1px solid var(--line);cursor:pointer;font-size:15px;background:var(--panel);color:var(--text)}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
   .btn:hover{border-color:var(--accent)}
+  .download{border-top:1px solid var(--line);padding:42px 0;text-align:center}
+  .download h2{font-size:22px;margin:0 0 6px}
+  .dl-sub{color:var(--muted);margin:0 0 22px;font-size:14px}
+  .dl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;max-width:740px;margin:0 auto}
+  .dlcard{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;
+    padding:22px 16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);
+    transition:border-color .15s,transform .15s,box-shadow .15s}
+  .dlcard:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .dlcard .dl-emoji{font-size:26px;line-height:1;margin-bottom:6px}
+  .dlcard .dl-os{font-size:17px;font-weight:700}
+  .dlcard .dl-arch{font-size:13px;color:var(--muted)}
+  .dlcard .dl-ver{margin-top:7px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)}
+  .dlcard.is-rec{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .dlcard .dl-rec{position:absolute;top:-10px;display:none;font-size:11px;font-weight:700;color:#fff;
+    background:var(--accent);border-radius:999px;padding:2px 10px}
+  .dlcard.is-rec .dl-rec{display:inline-block}
+  .dlcard.is-soon{opacity:.5;pointer-events:auto}
+  .dlcard.is-soon .dl-ver{color:var(--muted)}
+  .dl-note{color:var(--muted);font-size:13px;margin:20px auto 0;max-width:520px}
   .showcase{padding:4px 0 16px}
   .browser{max-width:900px;margin:0 auto;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:0 14px 36px var(--shadow)}
   .browser .bar{display:flex;align-items:center;gap:7px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--soft)}
@@ -80,7 +99,7 @@
       <a href="/playground/" data-i18n="nav_playground">Playground</a>
       <a href="/docs/" data-i18n="nav_docs">Docs</a>
       <a href="/docs/blog/" data-i18n="nav_blog">Blog</a>
-      <a href="https://github.com/fighttechvn/app_marketing/releases/latest" target="_blank" rel="noopener" data-i18n="nav_download">Download</a>
+      <a href="#download" data-i18n="nav_download">Download</a>
       <div class="ctrls">
         <select id="lang" aria-label="Language">
           <option value="en">English</option>
@@ -99,9 +118,38 @@
     <p data-i18n="hero_sub">Load live screenshots &amp; metadata from the App Store and Google Play with your API keys, preview your new version, run the first-release checklist, and audit your store SEO — all from one local page.</p>
     <div class="cta">
       <a class="btn primary" href="/playground/" data-i18n="cta_open">Open Playground</a>
-      <a class="btn" href="https://github.com/fighttechvn/app_marketing/releases/latest" target="_blank" rel="noopener" data-i18n="cta_download">⬇ Download (macOS · Windows)</a>
+      <a class="btn" href="#download" data-i18n="cta_download">⬇ Download (macOS · Windows)</a>
       <a class="btn" href="/docs/guides/setup/" data-i18n="cta_docs">Read the docs</a>
     </div>
+  </section>
+
+  <section class="download" id="download">
+    <h2 data-i18n="dl_h2">Download the desktop app</h2>
+    <p class="dl-sub" data-i18n="dl_sub">Native, signed &amp; notarized. Choose your platform.</p>
+    <div class="dl-grid">
+      <a class="dlcard" id="dl-mac-arm" href="https://github.com/fighttechvn/app_marketing/releases/latest" target="_blank" rel="noopener">
+        <span class="dl-rec" data-i18n="dl_rec">Recommended</span>
+        <span class="dl-emoji">🍎</span>
+        <span class="dl-os">macOS</span>
+        <span class="dl-arch" data-i18n="dl_mac_arm">Apple Silicon</span>
+        <span class="dl-ver" data-dl-ver>—</span>
+      </a>
+      <a class="dlcard" id="dl-mac-intel" href="https://github.com/fighttechvn/app_marketing/releases/latest" target="_blank" rel="noopener">
+        <span class="dl-rec" data-i18n="dl_rec">Recommended</span>
+        <span class="dl-emoji">🍎</span>
+        <span class="dl-os">macOS</span>
+        <span class="dl-arch" data-i18n="dl_mac_intel">Intel</span>
+        <span class="dl-ver" data-dl-ver>—</span>
+      </a>
+      <a class="dlcard" id="dl-win" href="https://github.com/fighttechvn/app_marketing/releases/latest" target="_blank" rel="noopener">
+        <span class="dl-rec" data-i18n="dl_rec">Recommended</span>
+        <span class="dl-emoji">🪟</span>
+        <span class="dl-os">Windows</span>
+        <span class="dl-arch">x64</span>
+        <span class="dl-ver" data-dl-ver>—</span>
+      </a>
+    </div>
+    <p class="dl-note" data-i18n="dl_note">Apple Silicon for Macs from 2020 onward · Intel for older Macs.</p>
   </section>
 
   <section class="showcase">
@@ -186,6 +234,7 @@ const I18N = {
     hero_title:"Preview your store listing before you ship it.",
     hero_sub:"Load live screenshots & metadata from the App Store and Google Play with your API keys, preview your new version, run the first-release checklist, and audit your store SEO — all from one local page.",
     cta_open:"Open Playground",cta_docs:"Read the docs",nav_download:"Download",cta_download:"⬇ Download (macOS · Windows)",
+    dl_h2:"Download the desktop app",dl_sub:"Native, signed & notarized. Choose your platform.",dl_mac_arm:"Apple Silicon",dl_mac_intel:"Intel",dl_rec:"Recommended",dl_soon:"coming soon",dl_note:"Apple Silicon for Macs from 2020 onward · Intel for older Macs.",
     demo_cap:'Live demo — open the <a href="/playground/">Playground</a> to load your own store data.',
     f1_t:"Load from the stores",f1_d:"Pull screenshots and metadata text from App Store Connect and Google Play using your API keys.",
     f2_t:"Preview new version",f2_d:"See exactly how your New version looks on the App Store and Google Play before you upload.",
@@ -202,6 +251,7 @@ const I18N = {
     hero_title:"Xem trước store listing trước khi phát hành.",
     hero_sub:"Tải screenshot & metadata trực tiếp từ App Store và Google Play bằng API key, xem trước phiên bản mới, chạy checklist phát hành lần đầu và audit SEO store — tất cả trên một trang local.",
     cta_open:"Mở Playground",cta_docs:"Đọc tài liệu",nav_download:"Tải về",cta_download:"⬇ Tải về (macOS · Windows)",
+    dl_h2:"Tải ứng dụng desktop",dl_sub:"Native, đã ký & notarize. Chọn nền tảng của bạn.",dl_mac_arm:"Apple Silicon",dl_mac_intel:"Intel",dl_rec:"Khuyến nghị",dl_soon:"sắp có",dl_note:"Apple Silicon cho Mac từ 2020 trở đi · Intel cho Mac đời cũ.",
     demo_cap:'Demo trực tiếp — mở <a href="/playground/">Playground</a> để tải dữ liệu store của bạn.',
     f1_t:"Tải từ store",f1_d:"Tải screenshot và metadata từ App Store Connect và Google Play bằng API key.",
     f2_t:"Xem trước phiên bản mới",f2_d:"Xem chính xác phiên bản mới hiển thị thế nào trên App Store và Google Play trước khi upload.",
@@ -218,6 +268,7 @@ const I18N = {
     hero_title:"출시 전에 스토어 등록정보를 미리 보세요.",
     hero_sub:"API 키로 App Store와 Google Play의 스크린샷·메타데이터를 불러오고, 새 버전을 미리 보고, 첫 출시 체크리스트를 실행하고, 스토어 SEO를 점검하세요 — 모두 로컬 페이지 하나에서.",
     cta_open:"Playground 열기",cta_docs:"문서 읽기",nav_download:"다운로드",cta_download:"⬇ 다운로드 (macOS · Windows)",
+    dl_h2:"데스크톱 앱 다운로드",dl_sub:"네이티브, 서명·공증 완료. 플랫폼을 선택하세요.",dl_mac_arm:"Apple Silicon",dl_mac_intel:"Intel",dl_rec:"추천",dl_soon:"준비 중",dl_note:"2020년 이후 Mac은 Apple Silicon · 이전 Mac은 Intel.",
     demo_cap:'라이브 데모 — <a href="/playground/">Playground</a>를 열어 내 스토어 데이터를 불러오세요.',
     f1_t:"스토어에서 불러오기",f1_d:"API 키로 App Store Connect와 Google Play에서 스크린샷과 메타데이터를 가져옵니다.",
     f2_t:"새 버전 미리보기",f2_d:"업로드 전에 새 버전이 App Store와 Google Play에서 어떻게 보이는지 확인합니다.",
@@ -234,6 +285,7 @@ const I18N = {
     hero_title:"عاين صفحة متجرك قبل النشر.",
     hero_sub:"حمّل لقطات الشاشة والبيانات الوصفية مباشرة من App Store وGoogle Play باستخدام مفاتيح API، وعاين الإصدار الجديد، ونفّذ قائمة التحقق للإصدار الأول، ودقّق تحسين متجرك — كل ذلك من صفحة محلية واحدة.",
     cta_open:"افتح Playground",cta_docs:"اقرأ المستندات",nav_download:"تنزيل",cta_download:"⬇ تنزيل (macOS · Windows)",
+    dl_h2:"حمّل تطبيق سطح المكتب",dl_sub:"أصلي، موقّع وموثّق. اختر نظامك.",dl_mac_arm:"Apple Silicon",dl_mac_intel:"Intel",dl_rec:"موصى به",dl_soon:"قريبًا",dl_note:"Apple Silicon لأجهزة Mac من 2020 فأحدث · Intel للأجهزة الأقدم.",
     demo_cap:'عرض حي — افتح <a href="/playground/">Playground</a> لتحميل بيانات متجرك.',
     f1_t:"تحميل من المتاجر",f1_d:"اسحب لقطات الشاشة والبيانات الوصفية من App Store Connect وGoogle Play باستخدام مفاتيح API.",
     f2_t:"معاينة الإصدار الجديد",f2_d:"شاهد كيف يبدو إصدارك الجديد على App Store وGoogle Play قبل الرفع.",
@@ -250,6 +302,7 @@ const I18N = {
     hero_title:"公開する前にストア掲載情報をプレビュー。",
     hero_sub:"API キーで App Store と Google Play からスクリーンショットとメタデータを読み込み、新バージョンをプレビューし、初回リリースのチェックリストを実行し、ストア SEO を監査 — すべて 1 つのローカルページで。",
     cta_open:"Playground を開く",cta_docs:"ドキュメントを読む",nav_download:"ダウンロード",cta_download:"⬇ ダウンロード (macOS · Windows)",
+    dl_h2:"デスクトップアプリをダウンロード",dl_sub:"ネイティブ、署名・公証済み。プラットフォームを選択。",dl_mac_arm:"Apple Silicon",dl_mac_intel:"Intel",dl_rec:"おすすめ",dl_soon:"近日公開",dl_note:"2020年以降のMacはApple Silicon · 旧MacはIntel。",
     demo_cap:'ライブデモ — <a href="/playground/">Playground</a> を開いて自分のストアデータを読み込みます。',
     f1_t:"ストアから読み込み",f1_d:"API キーで App Store Connect と Google Play からスクリーンショットとメタデータを取得します。",
     f2_t:"新バージョンをプレビュー",f2_d:"アップロード前に新バージョンが App Store と Google Play でどう見えるか確認します。",
@@ -285,9 +338,50 @@ function scaleDemo(){
   f.style.transform='scale('+s+')';
   vp.style.height=(880*s)+'px';
 }
+// Detect the visitor's OS to flag the recommended download (browsers can't
+// reliably tell Apple Silicon from Intel, so on macOS we recommend Apple Silicon).
+function detectOS(){
+  const ua=navigator.userAgent||'', p=(navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||'';
+  if(/Win/i.test(p)||/Windows/i.test(ua)) return 'win';
+  if(/Mac/i.test(p)||/Mac OS X/i.test(ua)) return 'mac';
+  return 'other';
+}
+// Resolve each platform's installer from the newest release that actually has it,
+// so the buttons survive version-in-filename changes and arch-partial releases.
+async function initDownloads(){
+  const REPO='fighttechvn/app_marketing';
+  const cards={
+    'dl-mac-arm':  n=>/aarch64\.dmg$/i.test(n),
+    'dl-mac-intel':n=>/(x64|x86_64)\.dmg$/i.test(n),
+    'dl-win':      n=>/setup\.exe$/i.test(n)||/\.msi$/i.test(n)
+  };
+  const os=detectOS();
+  if(os==='mac') document.getElementById('dl-mac-arm')?.classList.add('is-rec');
+  if(os==='win') document.getElementById('dl-win')?.classList.add('is-rec');
+  let rels;
+  try{
+    const r=await fetch('https://api.github.com/repos/'+REPO+'/releases?per_page=20',{headers:{Accept:'application/vnd.github+json'}});
+    if(!r.ok) return;                      // keep the releases/latest fallback hrefs
+    rels=await r.json();
+  }catch(_){ return; }
+  const soon=(I18N[document.documentElement.lang]||I18N.en).dl_soon||'coming soon';
+  for(const id in cards){
+    const el=document.getElementById(id); if(!el) continue;
+    let hit=null;
+    for(const rel of rels){
+      if(rel.draft) continue;
+      for(const a of (rel.assets||[])){ if(cards[id](a.name)){ hit={url:a.browser_download_url, ver:(rel.tag_name||'').replace(/^desktop-/,'')}; break; } }
+      if(hit) break;
+    }
+    const ver=el.querySelector('[data-dl-ver]');
+    if(hit){ el.href=hit.url; if(ver) ver.textContent=hit.ver; }
+    else { el.classList.add('is-soon'); if(ver) ver.textContent=soon; }
+  }
+}
 (function(){
   applyTheme(document.documentElement.dataset.theme||'light');
   applyI18n(localStorage.getItem('lang')||document.documentElement.lang||'en');
+  initDownloads();
   document.getElementById('lang').addEventListener('change',e=>applyI18n(e.target.value));
   document.getElementById('themeBtn').addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
   scaleDemo();

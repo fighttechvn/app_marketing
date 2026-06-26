@@ -565,6 +565,7 @@
     <div class="diff-foot">
       <span class="diff-summary" id="rnCount"></span>
       <input type="file" id="rnImportFile" accept="application/json,.json" class="hidden">
+      <button id="rnInit" title="Tạo JSON cấu hình SSH của MÁY NÀY để chia sẻ — máy khác Import rồi SSH vào">🆕 Initial Runner</button>
       <button id="rnExport" title="Tải danh sách máy ra file JSON (gồm cả mật khẩu/key)">⤓ Export</button>
       <button id="rnImport" title="Nhập danh sách máy từ file JSON">⤒ Import</button>
       <button id="rnCancel">Đóng</button>
@@ -1428,6 +1429,29 @@ $('inlineBtn').onclick=()=>{
     });
     save(state); render(); setMsg('✓ Đã import '+n+' máy'); if(n) toast('Đã import '+n+' máy');
   }
+  // 🆕 Initial Runner — build a JSON config describing THIS machine (its LAN IP,
+  // SSH user, port) so it can be shared and Imported on another host that will SSH
+  // into this box. Server detects the host info (browser can't read the LAN IP).
+  async function initRunner(){
+    setMsg('Đang lấy thông tin máy này…');
+    try{
+      const h=await (await fetch('/api/host-info')).json();
+      if(!h.ok){ setMsg('✗ '+(h.error||'không lấy được thông tin máy')); return; }
+      const ip=(h.ips&&h.ips[0])||h.hostname||'';
+      const runner={ name:(h.hostname||'this-machine'), host:ip, port:h.sshPort||22, user:h.user||'', auth:'password', pass:'' };
+      const doc={ version:1,
+        _note:'Cấu hình SSH của máy này để máy khác Import & SSH vào. Điền pass hoặc đổi sang SSH key trước khi dùng.'+
+              (h.sshRunning?'':' ⚠️ Máy này CHƯA bật SSH server (cổng 22 không mở) — cần bật trước.'),
+        runners:[runner] };
+      const text=JSON.stringify(doc,null,2);
+      let copied=false; try{ await navigator.clipboard.writeText(text); copied=true; }catch(_){}
+      const blob=new Blob([text],{type:'application/json'}); const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download='runner-'+(h.hostname||'this')+'.json'; a.click(); URL.revokeObjectURL(a.href);
+      setMsg('✓ JSON máy này ('+esc(ip)+', user '+esc(h.user||'?')+') — '+(copied?'đã copy + ':'')+'tải file.'+(h.sshRunning?'':' ⚠️ chưa bật SSH server!'));
+      toast('Initial Runner: '+ip);
+    }catch(e){ setMsg('✗ Lỗi: '+e.message); }
+  }
+  $('rnInit').onclick=initRunner;
   $('rnExport').onclick=exportRunners;
   $('rnImport').onclick=()=>$('rnImportFile').click();
   $('rnImportFile').onchange=e=>{ const file=e.target.files[0]; if(!file) return;

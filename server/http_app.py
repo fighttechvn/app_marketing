@@ -4,9 +4,40 @@ Binds localhost only — /api/env and /api/sync expose store credentials, and th
 adb/WDA/preview endpoints shell out / read local files, so this must never be
 served on 0.0.0.0 / the LAN.
 """
-import os, sys, json, http.server, urllib.parse
+import os, sys, json, http.server, urllib.parse, socket, getpass
 from . import context
 from . import stores, project, android, ios, preview, logs, remote
+
+
+def host_info():
+    """This machine's SSH-target info, for the 'Initial Runner' share button —
+    so another host can register THIS box as a runner and SSH into it."""
+    name = socket.gethostname()
+    ips = []
+    try:  # primary LAN IP (UDP connect trick — no traffic sent)
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80)); ips.append(s.getsockname()[0]); s.close()
+    except Exception:
+        pass
+    try:
+        for info in socket.getaddrinfo(name, None, socket.AF_INET):
+            ip = info[4][0]
+            if ip not in ips and not ip.startswith("127."):
+                ips.append(ip)
+    except Exception:
+        pass
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = os.environ.get("USERNAME") or os.environ.get("USER") or ""
+    ssh_up = False
+    try:
+        t = socket.socket(); t.settimeout(0.3)
+        ssh_up = t.connect_ex(("127.0.0.1", 22)) == 0; t.close()
+    except Exception:
+        pass
+    return {"ok": True, "hostname": name, "user": user, "platform": sys.platform,
+            "ips": ips, "sshPort": 22, "sshRunning": ssh_up}
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -139,6 +170,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if route == "/api/ios/remote":
             # Status of the SSH connection to a Mac runner (for remote iOS control).
             try: self._json(200, {"ok": True, **remote.status()})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/host-info":
+            # This machine's SSH-target info (for the "Initial Runner" share button).
+            try: self._json(200, host_info())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         if route == "/api/wda/devices":

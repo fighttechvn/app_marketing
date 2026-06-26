@@ -16,10 +16,18 @@
   img{display:block}
   /* ---- control bar (our own chrome) ---- */
   .ctl{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.9);backdrop-filter:blur(14px);
-    border-bottom:1px solid var(--line);padding:10px 62px 10px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-  .ctl .brand{font-weight:700;font-size:14px}
+    border-bottom:1px solid var(--line);padding:10px 108px 10px 18px;display:flex;gap:14px;align-items:center;
+    flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}
+  .ctl::-webkit-scrollbar{height:6px}
+  /* keep every control its natural width on one line — overflow scrolls, never shrinks/wraps */
+  .ctl>.toggle,.ctl>.seg,.ctl .dz-hint{flex:0 0 auto;white-space:nowrap}
+  .ctl .brand{font-weight:700;font-size:14px;flex:0 0 auto;white-space:nowrap}
   .ctl .brand span{color:var(--muted);font-weight:500}
-  .ctl-break{flex-basis:100%;height:0;margin:0}   /* forces the toolbar to wrap to a new line here */
+  /* Settings gear pinned at the top-right corner (left of the device rail) */
+  #settingsBtn.gear{position:fixed;top:8px;right:62px;z-index:55;width:36px;height:36px;padding:0;
+    display:flex;align-items:center;justify-content:center;font-size:17px;line-height:1;border-radius:10px;
+    background:var(--card);border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.12);cursor:pointer}
+  #settingsBtn.gear:hover{border-color:var(--ink)}
   .spacer{flex:1}
   .seg{display:inline-flex;background:#ececf0;border-radius:9px;padding:3px}
   .seg button{background:transparent;border:0;border-radius:7px;padding:6px 13px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
@@ -443,12 +451,11 @@
   <button class="toggle" id="syncBtn" title="Pull the live listing from App Store + Google Play into the Current tab (calls /api/sync)">⟳ Sync</button>
   <button class="toggle" id="submitBtn" title="Preview the diff between Current (live on store) and New (pending) before submitting">Review Diff</button>
   <div class="seg" id="localeSeg"></div>
-  <div class="ctl-break"></div>
   <button class="toggle" id="asoToggle">ASO checks</button>
   <button class="toggle" id="inlineBtn">Edit on page</button>
   <button class="toggle" id="editToggle">Edit JSON</button>
   <button class="toggle" id="loadImgBtn">Load images…</button>
-  <button class="toggle" id="settingsBtn" title="Cài đặt — Release checklist · Export · Import · Runners">⚙ Settings</button>
+  <button class="toggle gear" id="settingsBtn" title="Cài đặt — Release checklist · Export · Import · Runners" aria-label="Settings">⚙</button>
   <span class="dz-hint">⤵ or drag images / a folder anywhere</span>
   <input type="file" id="fileInput" accept="application/json,.json" class="hidden">
   <input type="file" id="imgInput" accept="image/*" multiple webkitdirectory class="hidden">

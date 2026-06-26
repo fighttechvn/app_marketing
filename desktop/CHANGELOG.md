@@ -4,6 +4,16 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
 `desktop-v<version>` and published to
 [GitHub Releases](https://github.com/fighttechvn/app_marketing/releases).
 
+## 0.4.3 — 2026-06-26
+
+**Ships the Windows launch fix to users.**
+
+### Changed
+- Version bump to publish fresh signed macOS `.dmg` and Windows NSIS `.exe`
+  builds via the auto-release pipeline. The `0.4.2` bump never produced a
+  release, so this is the first build that actually delivers the Windows
+  launch fix below (no further functional changes to the app).
+
 ## 0.4.2 — 2026-06-25
 
 **Windows launch fix.**

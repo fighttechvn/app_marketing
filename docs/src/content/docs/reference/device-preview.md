@@ -111,6 +111,10 @@ standard XCUITest agent. `iproxy` (libimobiledevice) forwards WDA's HTTP (`8100`
 MJPEG (`9100`) ports off-device over USB; the backend talks to WDA's HTTP API and
 relays its MJPEG stream.
 
+> **Running from Windows/Linux?** iOS simulators need macOS. To drive a Mac's
+> simulators from a non-Mac host over SSH, register the Mac as a runner — see
+> [Remote iOS control & Runners](/reference/remote-ios-runners/).
+
 > **Coordinate space differs from Android.** WDA gestures use logical **points**
 > (`window/size`), not screenshot pixels. The frontend maps clicks via the points
 > size reported by `/api/wda/status`.

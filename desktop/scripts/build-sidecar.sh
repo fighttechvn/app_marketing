@@ -62,7 +62,7 @@ cp -R "$ROOT/assets" "$STAGE/assets"
 # 2) Python deps + PyInstaller (into the runner — ambient interpreter, or the
 #    isolated cross-arch venv set up above).
 "${RUN[@]}" -m pip install --quiet --upgrade pip
-"${RUN[@]}" -m pip install --quiet --upgrade pyinstaller pyjwt cryptography \
+"${RUN[@]}" -m pip install --quiet --upgrade pyinstaller pyjwt cryptography paramiko \
       google-api-python-client google-auth google-auth-httplib2
 
 "${RUN[@]}" -m PyInstaller --clean --noconfirm --onefile --name serve \
@@ -76,7 +76,10 @@ cp -R "$ROOT/assets" "$STAGE/assets"
   --collect-all google_auth_httplib2 \
   --collect-submodules google \
   --collect-submodules server \
+  --collect-submodules paramiko \
+  --collect-all nacl \
   --hidden-import jwt \
+  --hidden-import paramiko \
   --hidden-import cryptography \
   --distpath "$(np "$DESKTOP/.pyi-dist")" --workpath "$(np "$DESKTOP/.pyi-work")" --specpath "$(np "$DESKTOP/.pyi-spec")" \
   "$(np "$DESKTOP/sidecar/app_sidecar.py")"

@@ -5,7 +5,7 @@ exposure). Gesture coordinates are device PIXELS — the frontend maps clicks vi
 the screenshot's natural size.
 """
 import os, shutil, subprocess
-from .util import find_bin, have
+from .util import find_bin, have, exe_path
 
 ADB = find_bin("adb", "ADB_BIN")
 SCRCPY = find_bin("scrcpy", "SCRCPY_BIN")
@@ -26,9 +26,9 @@ def _find_emulator():
     roots += [os.path.join(home, "Library/Android/sdk"), os.path.join(home, "Android/Sdk")]
     for r in roots:
         if r:
-            cand = os.path.join(r, "emulator", "emulator")
-            if os.path.exists(cand):
-                return cand
+            hit = exe_path(os.path.join(r, "emulator", "emulator"))   # <sdk>/emulator/emulator(.exe)
+            if hit:
+                return hit
     return shutil.which("emulator") or "emulator"
 
 EMULATOR = _find_emulator()

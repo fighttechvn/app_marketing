@@ -391,6 +391,12 @@
   .rn-formfoot .rn-msg{flex:1;font-size:12.5px;color:var(--muted)}
   .rn-formfoot button{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:8px 16px;font-weight:600;font-size:13px;cursor:pointer;color:var(--ink)}
   .rn-formfoot button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .rn-auth{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .rn-auth .rn-authlbl{font-size:12px;font-weight:600;color:var(--muted)}
+  .rn-auth .seg{display:inline-flex}
+  .rn-keylbl{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px}
+  .rn-keylbl small{font-weight:500;color:var(--muted)}
+  .rn-keylbl textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:11px/1.4 ui-monospace,Menlo,monospace;color:var(--ink);background:var(--bg);resize:vertical;box-sizing:border-box}
   /* settings dialog — moved toolbar actions as a vertical list */
   .set-modal{max-width:420px}
   .set-list{display:flex;flex-direction:column;gap:8px;padding:4px 0}
@@ -522,7 +528,7 @@
   <div class="diff-modal">
     <div class="diff-head"><h2>Runners — máy chạy task (SSH)</h2><button id="runnerClose" aria-label="Close">✕</button></div>
     <div class="diff-body">
-      <div class="rn-note">⚠️ Thông tin (kể cả mật khẩu) lưu <b>cục bộ trong trình duyệt này</b> (localStorage) ở dạng plaintext, không gửi đi đâu. Chỉ dùng trên máy tin cậy.</div>
+      <div class="rn-note">⚠️ Thông tin (mật khẩu / private key) lưu <b>cục bộ trong trình duyệt này</b> (localStorage) ở dạng plaintext, chỉ gửi tới server local khi Test/Kết nối. Chỉ dùng trên máy tin cậy.</div>
       <div class="rn-list" id="rnList"></div>
       <form class="rn-form" id="rnForm" autocomplete="off">
         <input type="hidden" id="rnId">
@@ -531,10 +537,26 @@
           <label>Host / IP<input id="rnHost" placeholder="192.168.1.50" required></label>
           <label>Port (SSH)<input id="rnPort" type="number" min="1" max="65535" placeholder="22" value="22"></label>
           <label>Username<input id="rnUser" placeholder="builder" required></label>
+        </div>
+        <div class="rn-auth">
+          <span class="rn-authlbl">Xác thực</span>
+          <div class="seg" id="rnAuthSeg">
+            <button type="button" data-auth="password" class="active">Mật khẩu</button>
+            <button type="button" data-auth="key">SSH key</button>
+          </div>
+        </div>
+        <div class="rn-grid" id="rnPassRow">
           <label>Password<input id="rnPass" type="password" placeholder="••••••" autocomplete="new-password"></label>
+        </div>
+        <div id="rnKeyRow" class="hidden">
+          <label class="rn-keylbl">Private key <small>(dán nội dung ~/.ssh/id_ed25519 hoặc id_rsa)</small>
+            <textarea id="rnKey" rows="4" spellcheck="false" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;…"></textarea>
+          </label>
+          <div class="rn-grid"><label>Passphrase <small>(nếu key có)</small><input id="rnPassphrase" type="password" autocomplete="new-password"></label></div>
         </div>
         <div class="rn-formfoot">
           <span class="rn-msg" id="rnMsg"></span>
+          <button type="button" id="rnTest">🔌 Test connection</button>
           <button type="button" id="rnReset">Làm mới</button>
           <button type="submit" class="primary" id="rnSave">＋ Thêm máy</button>
         </div>
@@ -1262,18 +1284,38 @@ $('inlineBtn').onclick=()=>{
   const RN_KEY='sp-runners-v1';
   const ov=$('runnerOverlay'), listEl=$('rnList'), form=$('rnForm'), countEl=$('rnCount'),
         msg=$('rnMsg'), saveBtn=$('rnSave'),
-        f={id:$('rnId'),name:$('rnName'),host:$('rnHost'),port:$('rnPort'),user:$('rnUser'),pass:$('rnPass')};
+        f={id:$('rnId'),name:$('rnName'),host:$('rnHost'),port:$('rnPort'),user:$('rnUser'),pass:$('rnPass'),
+           key:$('rnKey'),passphrase:$('rnPassphrase')};
   const load=()=>{ try{ const s=JSON.parse(localStorage.getItem(RN_KEY)||'{}');
       return {runners:Array.isArray(s.runners)?s.runners:[], activeId:s.activeId||''}; }
     catch(_){ return {runners:[],activeId:''}; } };
   const save=s=>{ try{ localStorage.setItem(RN_KEY,JSON.stringify(s)); }catch(_){}};
   let state=load();
   const setMsg=t=>{ msg.textContent=t||''; };
-  function resetForm(){ form.reset(); f.id.value=''; f.port.value='22'; saveBtn.textContent='＋ Thêm máy'; setMsg(''); }
+  // auth method: password vs SSH key (toggles which fields show)
+  let authType='password';
+  function setAuth(a){ authType=(a==='key')?'key':'password';
+    document.querySelectorAll('#rnAuthSeg button').forEach(b=>b.classList.toggle('active',b.dataset.auth===authType));
+    $('rnPassRow').classList.toggle('hidden',authType==='key');
+    $('rnKeyRow').classList.toggle('hidden',authType!=='key'); }
+  document.querySelectorAll('#rnAuthSeg button').forEach(b=>b.onclick=()=>setAuth(b.dataset.auth));
+  // collect current form values (auth-aware) — used by Save and Test connection
+  function gather(){
+    let port=parseInt(f.port.value,10); if(!(port>=1&&port<=65535)) port=22;
+    const d={name:f.name.value.trim(),host:f.host.value.trim(),user:f.user.value.trim(),port,auth:authType};
+    if(authType==='key'){ d.key=f.key.value; d.passphrase=f.passphrase.value; } else { d.pass=f.pass.value; }
+    return d;
+  }
+  // SSH payload for /api/ios/{connect,test} from a runner record or form data
+  const sshPayload=r=>({host:r.host,port:r.port,user:r.user,
+    pass:r.auth==='key'?'':(r.pass||''), key:r.auth==='key'?(r.key||''):'', passphrase:r.passphrase||''});
+  function resetForm(){ form.reset(); f.id.value=''; f.port.value='22'; setAuth('password'); saveBtn.textContent='＋ Thêm máy'; setMsg(''); }
   function editRunner(id){
     const r=state.runners.find(x=>x.id===id); if(!r) return;
     f.id.value=r.id; f.name.value=r.name||''; f.host.value=r.host||''; f.port.value=r.port||'22';
-    f.user.value=r.user||''; f.pass.value=r.pass||'';
+    f.user.value=r.user||'';
+    setAuth(r.auth==='key'?'key':'password');
+    f.pass.value=r.pass||''; f.key.value=r.key||''; f.passphrase.value=r.passphrase||'';
     saveBtn.textContent='💾 Lưu thay đổi'; setMsg('Đang sửa “'+r.name+'”'); f.name.focus();
   }
   function delRunner(id){
@@ -1296,7 +1338,7 @@ $('inlineBtn').onclick=()=>{
       const row=document.createElement('div'); row.className='rn-row'+(r.id===state.activeId?' active':'');
       row.innerHTML=
         '<div class="rn-main"><div class="rn-name">'+esc(r.name)+(r.id===state.activeId?' <span class="rn-badge">▶ active</span>':'')+'</div>'+
-        '<div class="rn-sub">'+esc(r.user||'')+'@'+esc(r.host||'')+':'+esc(String(r.port||22))+(r.pass?' · 🔒':'')+'</div></div>'+
+        '<div class="rn-sub">'+esc(r.user||'')+'@'+esc(r.host||'')+':'+esc(String(r.port||22))+(r.auth==='key'?' · 🔑 key':(r.pass?' · 🔒':''))+'</div></div>'+
         '<button data-act="ios" title="SSH vào máy này và mở mirror/điều khiển iOS simulator">📱 iOS</button>'+
         '<button data-act="active">'+(r.id===state.activeId?'Bỏ chọn':'Chọn')+'</button>'+
         '<button data-act="edit">Sửa</button>'+
@@ -1312,7 +1354,7 @@ $('inlineBtn').onclick=()=>{
     setMsg('Đang SSH tới '+r.host+'…');
     try{
       const res=await (await fetch('/api/ios/connect',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({host:r.host,port:r.port,user:r.user,pass:r.pass})})).json();
+        body:JSON.stringify(sshPayload(r))})).json();
       if(!res.ok){ setMsg('✗ '+(res.error||'kết nối thất bại')); iosConn=null; render(); return; }
       iosConn=res.host||r.host;
       const sims=(res.ios&&res.ios.sims)||[];
@@ -1329,16 +1371,31 @@ $('inlineBtn').onclick=()=>{
   function syncConn(){ fetch('/api/ios/remote').then(r=>r.json()).then(d=>{ iosConn=(d&&d.connected)?d.host:null; render(); }).catch(()=>{}); }
   form.onsubmit=e=>{
     e.preventDefault();
-    const name=f.name.value.trim(), host=f.host.value.trim(), user=f.user.value.trim();
-    if(!name||!host||!user){ setMsg('Cần nhập Tên, Host và Username'); return; }
-    let port=parseInt(f.port.value,10); if(!(port>=1&&port<=65535)) port=22;
-    const data={name,host,port,user,pass:f.pass.value};
+    const data=gather();
+    if(!data.name||!data.host||!data.user){ setMsg('Cần nhập Tên, Host và Username'); return; }
+    if(data.auth==='key' && !(data.key||'').trim()){ setMsg('Dán private key, hoặc đổi sang Mật khẩu'); return; }
     const id=f.id.value;
-    if(id){ const r=state.runners.find(x=>x.id===id); if(r) Object.assign(r,data); toast('Đã lưu '+name); }
+    if(id){ const r=state.runners.find(x=>x.id===id);
+      if(r){ ['pass','key','passphrase'].forEach(k=>delete r[k]); Object.assign(r,data); }   // drop stale other-auth fields
+      toast('Đã lưu '+data.name); }
     else { data.id='rn-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-           state.runners.push(data); toast('Đã thêm '+name); }
+           state.runners.push(data); toast('Đã thêm '+data.name); }
     save(state); render(); resetForm();
   };
+  // 🔌 Test connection — validate the form's SSH creds without saving/connecting for real
+  async function testConn(){
+    const d=gather();
+    if(!d.host||!d.user){ setMsg('Cần Host và Username để test'); return; }
+    if(d.auth==='key' && !(d.key||'').trim()){ setMsg('Dán private key để test'); return; }
+    const btn=$('rnTest'), orig=btn.textContent; btn.disabled=true; btn.textContent='⏳ Đang test…'; setMsg('Đang kết nối SSH tới '+d.host+'…');
+    try{
+      const res=await (await fetch('/api/ios/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(sshPayload(d))})).json();
+      if(res.ok){ setMsg('✓ Kết nối OK · '+(res.xcrun?('xcrun có · '+(res.booted||0)+' simulator đang chạy'):'không thấy xcrun (không phải máy Mac?)')); }
+      else setMsg('✗ '+(res.error||'kết nối thất bại'));
+    }catch(e){ setMsg('✗ Lỗi: '+e.message); }
+    finally{ btn.disabled=false; btn.textContent=orig; }
+  }
+  $('rnTest').onclick=testConn;
   $('rnReset').onclick=resetForm;
   const open=()=>{ state=load(); resetForm(); render(); ov.classList.remove('hidden'); syncConn(); };
   const close=()=>ov.classList.add('hidden');

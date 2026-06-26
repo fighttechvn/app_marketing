@@ -215,9 +215,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not remote.available():
                     self._json(200, {"ok": False, "error": "SSH support (paramiko) not installed on the server"})
                     return
-                remote.connect(b.get("host"), b.get("port") or 22, b.get("user"), b.get("pass") or "")
+                remote.connect(b.get("host"), b.get("port") or 22, b.get("user"),
+                               b.get("pass") or "", b.get("key"), b.get("passphrase"))
                 # report what the Mac offers (simctl available + simulator list)
                 self._json(200, {"ok": True, **remote.status(), "ios": ios.ios_devices()})
+            except Exception as e:
+                self._json(200, {"ok": False, "error": str(e)[:200]})
+            return
+        if route == "/api/ios/test":
+            # Validate a runner's SSH creds WITHOUT connecting/tunnelling for real.
+            try:
+                b = self._json_body()
+                if not remote.available():
+                    self._json(200, {"ok": False, "error": "SSH support (paramiko) not installed on the server"})
+                    return
+                self._json(200, remote.test(b.get("host"), b.get("port") or 22, b.get("user"),
+                                            b.get("pass") or "", b.get("key"), b.get("passphrase")))
             except Exception as e:
                 self._json(200, {"ok": False, "error": str(e)[:200]})
             return

@@ -9,7 +9,7 @@ Used when this server runs on a non-Mac box (e.g. Windows): the user picks a
 "runner" (host/user/pass) and we connect here. On macOS you'd just drive the
 local simulators directly, so this stays dormant unless connect() is called.
 """
-import socket, select, threading
+import io, socket, select, threading
 
 try:
     import paramiko
@@ -97,15 +97,36 @@ class _Tunnel(threading.Thread):
         except Exception: pass
 
 
-def connect(host, port, user, password):
+def _load_pkey(text, passphrase=None):
+    """Parse a pasted private key (any common type) into a paramiko key."""
+    pw = passphrase or None
+    for kc in (paramiko.Ed25519Key, paramiko.ECDSAKey, paramiko.RSAKey, paramiko.DSSKey):
+        try:
+            return kc.from_private_key(io.StringIO(text), password=pw)
+        except Exception:
+            continue
+    raise RuntimeError("unsupported/invalid private key (or wrong passphrase)")
+
+
+def _open(host, port, user, password=None, key=None, passphrase=None, timeout=12):
+    """Open a paramiko SSHClient with password OR private-key auth."""
     if not paramiko:
         raise RuntimeError("paramiko not installed on the server")
-    disconnect()
     cli = paramiko.SSHClient()
     cli.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    cli.connect(host, port=int(port or 22), username=user, password=password,
-                timeout=12, banner_timeout=12, auth_timeout=12,
-                allow_agent=False, look_for_keys=False)
+    kw = dict(hostname=host, port=int(port or 22), username=user, timeout=timeout,
+              banner_timeout=timeout, auth_timeout=timeout, allow_agent=False, look_for_keys=False)
+    if key and str(key).strip():
+        kw["pkey"] = _load_pkey(key, passphrase)
+    else:
+        kw["password"] = password or ""
+    cli.connect(**kw)
+    return cli
+
+
+def connect(host, port, user, password=None, key=None, passphrase=None):
+    disconnect()
+    cli = _open(host, port, user, password, key, passphrase)
     tr = cli.get_transport()
     tr.set_keepalive(20)
     tunnels = [_Tunnel(tr, p) for p in TUNNEL_PORTS]
@@ -114,6 +135,24 @@ def connect(host, port, user, password):
     with _LOCK:
         _STATE.update({"client": cli, "host": host, "user": user, "tunnels": tunnels})
     return status()
+
+
+def test(host, port, user, password=None, key=None, passphrase=None):
+    """Throwaway SSH connect to validate creds (no tunnel, not stored). Reports
+    whether the box has xcrun and how many simulators are booted."""
+    cli = _open(host, port, user, password, key, passphrase, timeout=10)
+    try:
+        _, so, _ = cli.exec_command(
+            "command -v xcrun >/dev/null 2>&1 && "
+            "echo xcrun:$(xcrun simctl list devices booted 2>/dev/null | grep -c Booted) || echo noxcrun",
+            timeout=15)
+        out = so.read().decode("utf-8", "replace").strip()
+        xcrun = out.startswith("xcrun:")
+        booted = int(out.split(":", 1)[1]) if (xcrun and ":" in out and out.split(":", 1)[1].isdigit()) else 0
+        return {"ok": True, "host": host, "xcrun": xcrun, "booted": booted}
+    finally:
+        try: cli.close()
+        except Exception: pass
 
 
 def disconnect():

@@ -564,6 +564,9 @@
     </div>
     <div class="diff-foot">
       <span class="diff-summary" id="rnCount"></span>
+      <input type="file" id="rnImportFile" accept="application/json,.json" class="hidden">
+      <button id="rnExport" title="Tải danh sách máy ra file JSON (gồm cả mật khẩu/key)">⤓ Export</button>
+      <button id="rnImport" title="Nhập danh sách máy từ file JSON">⤒ Import</button>
       <button id="rnCancel">Đóng</button>
     </div>
   </div>
@@ -1402,6 +1405,33 @@ $('inlineBtn').onclick=()=>{
   $('runnersBtn').onclick=open;
   $('runnerClose').onclick=close; $('rnCancel').onclick=close;
   ov.onclick=e=>{ if(e.target===ov) close(); };
+  // ---- Export / Import the runner list as JSON ----
+  function exportRunners(){
+    if(!state.runners.length){ setMsg('Chưa có máy nào để export'); return; }
+    if(!confirm('File JSON chứa mật khẩu / private key dạng plaintext — chỉ lưu nơi an toàn. Tiếp tục?')) return;
+    const blob=new Blob([JSON.stringify({version:1, runners:state.runners}, null, 2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='runners.json'; a.click(); URL.revokeObjectURL(a.href);
+    toast('Đã export '+state.runners.length+' máy');
+  }
+  function importRunners(text){
+    let parsed; try{ parsed=JSON.parse(text); }catch(e){ setMsg('✗ JSON không hợp lệ: '+e.message); return; }
+    const list=Array.isArray(parsed)?parsed:(parsed&&Array.isArray(parsed.runners)?parsed.runners:null);
+    if(!list){ setMsg('✗ Không tìm thấy mảng "runners" trong JSON'); return; }
+    let n=0;
+    list.forEach(r=>{
+      if(!r||!r.host||!r.user) return;
+      const it={ name:String(r.name||r.host), host:String(r.host), port:parseInt(r.port,10)||22,
+        user:String(r.user), auth:(r.auth==='key'?'key':'password') };
+      if(it.auth==='key'){ it.key=r.key||''; it.passphrase=r.passphrase||''; } else { it.pass=r.pass||''; }
+      it.id='rn-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+(n++);
+      state.runners.push(it);
+    });
+    save(state); render(); setMsg('✓ Đã import '+n+' máy'); if(n) toast('Đã import '+n+' máy');
+  }
+  $('rnExport').onclick=exportRunners;
+  $('rnImport').onclick=()=>$('rnImportFile').click();
+  $('rnImportFile').onchange=e=>{ const file=e.target.files[0]; if(!file) return;
+    const rd=new FileReader(); rd.onload=()=>importRunners(rd.result); rd.readAsText(file); e.target.value=''; };
   // Expose the chosen machine for a future SSH/task-runner feature to consume.
   window.spActiveRunner=()=>{ const s=load(); return s.runners.find(r=>r.id===s.activeId)||null; };
 })();

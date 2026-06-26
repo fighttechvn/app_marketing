@@ -4,7 +4,7 @@ Binds localhost only — /api/env and /api/sync expose store credentials, and th
 adb/WDA/preview endpoints shell out / read local files, so this must never be
 served on 0.0.0.0 / the LAN.
 """
-import os, sys, json, http.server, urllib.parse, socket, getpass
+import os, sys, json, tempfile, http.server, urllib.parse, socket, getpass
 from . import context
 from . import stores, project, android, ios, preview, logs, remote, config
 
@@ -88,6 +88,46 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def _json_body(self):
         return json.loads(self._body() or "{}")
 
+    def _raw_body(self):
+        """Read the request body as raw bytes (binary uploads — APK/IPA)."""
+        n = int(self.headers.get("Content-Length", 0))
+        return self.rfile.read(n) if n else b""
+
+    def _install(self, kind):
+        """Shared install handler for Android (adb) + iOS. Two source modes:
+          • JSON  {serial|udid, path}  — a local file the server can read
+            (the desktop native drop bridges a real path here, no upload).
+          • raw upload  ?serial|udid=…&name=foo.apk  with the bytes as the body
+            (browser drag/file-picker) — written to a temp file, then installed.
+        """
+        ident_key = "serial" if kind == "android" else "udid"
+        ctype = (self.headers.get("Content-Type") or "").lower()
+        tmp = None
+        try:
+            if "application/json" in ctype:
+                b = self._json_body()
+                ident, path = b.get(ident_key) or None, b.get("path", "")
+            else:
+                q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                ident = (q.get(ident_key) or [None])[0]
+                name = (q.get("name") or ["build"])[0]
+                data = self._raw_body()
+                if not data:
+                    return self._json(400, {"ok": False, "error": "empty upload"})
+                suffix = os.path.splitext(name)[1] or ".bin"
+                fd, tmp = tempfile.mkstemp(suffix=suffix, prefix="sp-build-")
+                with os.fdopen(fd, "wb") as f:
+                    f.write(data)
+                path = tmp
+            fn = android.adb_install if kind == "android" else ios.ios_install
+            self._json(200, fn(ident, path))
+        except Exception as e:
+            self._json(500, {"ok": False, "error": str(e)})
+        finally:
+            if tmp:
+                try: os.remove(tmp)
+                except OSError: pass
+
     def _proxy_mjpeg(self, udid):
         """Relay WDA's MJPEG screen stream (device :9100) to the browser <img>."""
         try:
@@ -143,6 +183,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         if route == "/api/env":
             try: self._json(200, stores.env_dump())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/paths":
+            # Product tool paths (adb/scrcpy/…) resolved + found-state + screenshot
+            # dir, for the Config / Paths dialog. (Distinct from /api/config, which
+            # carries the app's runners/settings.)
+            try: self._json(200, config.paths_dump())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         # ---- Preview panel: Android (adb) + local file preview ----
@@ -224,6 +271,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # Delete a runner by id. Body: {"id": "..."}.
             try: self._json(200, {"ok": True, **config.delete_runner(self._json_body().get("id"))})
             except Exception as e: self._json(500, {"ok": False, "error": str(e)[:200]})
+            return
+        if route == "/api/paths":
+            # Save tool-path / screenshot-dir overrides from the Config dialog.
+            try: self._json(200, {"ok": True, **config.save_paths(self._json_body())})
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/install":
+            self._install("android")
+            return
+        if route == "/api/adb/capture":
+            try: self._json(200, android.adb_capture(self._json_body().get("serial") or None, config.screenshot_dir()))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/ios/install":
+            self._install("ios")
+            return
+        if route == "/api/ios/capture":
+            try: self._json(200, ios.ios_capture(self._json_body().get("udid") or None, config.screenshot_dir()))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         if route == "/api/open":
             # Switch the active project folder; body = {"path": "..."}.

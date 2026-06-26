@@ -4,11 +4,19 @@ Localhost-only server, so shelling out to adb/scrcpy is acceptable (no LAN
 exposure). Gesture coordinates are device PIXELS — the frontend maps clicks via
 the screenshot's natural size.
 """
-import os, shutil, subprocess
+import os, time, shutil, subprocess
 from .util import find_bin, have, exe_path
+from . import config
 
 ADB = find_bin("adb", "ADB_BIN")
 SCRCPY = find_bin("scrcpy", "SCRCPY_BIN")
+
+# Effective binaries: a user override in the Config / Paths dialog wins, else the
+# PATH/SDK auto-detection above. Resolved per call so a config edit takes effect
+# without restarting the server.
+def adb_bin():      return config.get("adb") or ADB
+def scrcpy_bin():   return config.get("scrcpy") or SCRCPY
+def emulator_bin(): return config.get("emulator") or EMULATOR
 
 # The `emulator` binary lives in <sdk>/emulator — NOT platform-tools, and NOT the
 # legacy <sdk>/tools/emulator (a deprecated x86 stub that crashes on Apple
@@ -45,15 +53,15 @@ ADB_KEYS = {"back": 4, "home": 3, "recents": 187, "appswitch": 187, "power": 26,
 
 def _adb(args, serial=None, timeout=25, binary=False):
     """Run an adb command. Returns (stdout, stderr, rc); stdout is bytes when binary."""
-    cmd = [ADB] + (["-s", serial] if serial else []) + list(args)
+    cmd = [adb_bin()] + (["-s", serial] if serial else []) + list(args)
     p = subprocess.run(cmd, capture_output=True, timeout=timeout)
     out = p.stdout if binary else p.stdout.decode("utf-8", "replace")
     return out, p.stderr.decode("utf-8", "replace"), p.returncode
 
 
 def adb_devices():
-    if not have(ADB):
-        return {"ok": False, "error": "adb not found on PATH (set ADB_BIN)", "devices": []}
+    if not have(adb_bin()):
+        return {"ok": False, "error": "adb not found on PATH (set ADB_BIN or pin it in Config / Paths)", "devices": []}
     out, err, rc = _adb(["devices", "-l"], timeout=15)
     devs = []
     for line in out.splitlines()[1:]:
@@ -65,7 +73,7 @@ def adb_devices():
         model = next((t.split(":", 1)[1] for t in parts[2:] if t.startswith("model:")), "")
         devs.append({"serial": serial, "state": state, "model": model.replace("_", " "),
                      "scrcpy": serial in _SCRCPY_PROCS and _SCRCPY_PROCS[serial].poll() is None})
-    return {"ok": True, "devices": devs, "adb": ADB, "scrcpy": have(SCRCPY)}
+    return {"ok": True, "devices": devs, "adb": adb_bin(), "scrcpy": have(scrcpy_bin())}
 
 
 def adb_screen(serial=None):
@@ -74,6 +82,38 @@ def adb_screen(serial=None):
     if rc != 0 or not out:
         raise RuntimeError(err.strip() or "screencap failed")
     return out
+
+
+def adb_install(serial, path):
+    """Install (or reinstall, keeping data) an APK onto the device — the target
+    of dragging a build onto the Android frame. `path` is a local .apk/.apks the
+    server can read (native drop gives a real path; browser upload writes a temp)."""
+    if not have(adb_bin()):
+        return {"ok": False, "error": "adb not found (set it in Config / Paths)"}
+    if not path or not os.path.isfile(path):
+        return {"ok": False, "error": "APK not found: %s" % path}
+    args = ["install-multiple", "-r"] if path.lower().endswith(".apks") else ["install", "-r"]
+    out, err, rc = _adb(args + [path], serial=serial, timeout=300)
+    msg = (out or "") + (err or "")
+    if rc != 0 or "Failure" in msg or "Error" in msg:
+        return {"ok": False, "error": (msg.strip() or "install failed")[:300]}
+    return {"ok": True, "out": (out.strip() or "Success")[:200]}
+
+
+def adb_capture(serial, dest_dir):
+    """Grab the current screen (screencap) and save a PNG into `dest_dir`.
+    Returns the saved path so the UI can show a draggable thumbnail of it."""
+    data = adb_screen(serial)
+    os.makedirs(dest_dir, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    name = "android-%s.png" % stamp
+    path = os.path.join(dest_dir, name)
+    n = 1
+    while os.path.exists(path):              # avoid clobbering same-second captures
+        name = "android-%s-%d.png" % (stamp, n); path = os.path.join(dest_dir, name); n += 1
+    with open(path, "wb") as f:
+        f.write(data)
+    return {"ok": True, "path": path, "file": name}
 
 
 def adb_input(body):
@@ -103,12 +143,12 @@ def adb_input(body):
 
 def adb_scrcpy(serial=None):
     """Launch (or focus) a native scrcpy window — high-FPS mirror with full input."""
-    if not have(SCRCPY):
+    if not have(scrcpy_bin()):
         return {"ok": False, "error": "scrcpy not installed (brew install scrcpy)"}
     proc = _SCRCPY_PROCS.get(serial or "")
     if proc and proc.poll() is None:
         return {"ok": True, "already": True}
-    cmd = [SCRCPY] + (["-s", serial] if serial else [])
+    cmd = [scrcpy_bin()] + (["-s", serial] if serial else [])
     _SCRCPY_PROCS[serial or ""] = subprocess.Popen(
         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True)
@@ -123,7 +163,7 @@ def adb_scrcpy(serial=None):
 def _running_avds():
     """Names of AVDs that are currently booted (matched via `adb emu avd name`)."""
     names = set()
-    if not have(ADB):
+    if not have(adb_bin()):
         return names
     out, _, rc = _adb(["devices"], timeout=10)
     if rc != 0:
@@ -140,7 +180,7 @@ def _running_avds():
 
 def emu_avds():
     """List installed Android Virtual Devices + which are already booted."""
-    if not have(EMULATOR):
+    if not have(emulator_bin()):
         return {"ok": False, "avds": [],
                 "error": "emulator not found (install via Android Studio, or set EMULATOR_BIN)"}
     try:
@@ -152,12 +192,12 @@ def emu_avds():
     running = _running_avds()
     avds = [{"name": n.strip(), "running": n.strip() in running}
             for n in out.splitlines() if n.strip() and not n.startswith("INFO")]
-    return {"ok": True, "avds": avds, "emulator": EMULATOR}
+    return {"ok": True, "avds": avds, "emulator": emulator_bin()}
 
 
 def emu_launch(name):
     """Boot an AVD headfully; it then appears in adb devices for mirror/control."""
-    if not have(EMULATOR):
+    if not have(emulator_bin()):
         return {"ok": False, "error": "emulator binary not found"}
     if not name:
         return {"ok": False, "error": "no AVD name"}
@@ -165,12 +205,12 @@ def emu_launch(name):
     if proc and proc.poll() is None:
         return {"ok": True, "already": True}
     _AVD_PROCS[name] = subprocess.Popen(
-        [EMULATOR, "-avd", name],
+        [emulator_bin(), "-avd", name],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     return {"ok": True, "launched": True}
 
 
 def run_emulator(args, timeout=15):
     """Run the emulator CLI (separate from _adb since it's a different binary)."""
-    p = subprocess.run([EMULATOR] + list(args), capture_output=True, timeout=timeout)
+    p = subprocess.run([emulator_bin()] + list(args), capture_output=True, timeout=timeout)
     return p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace"), p.returncode

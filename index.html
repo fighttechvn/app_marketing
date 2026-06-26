@@ -227,6 +227,23 @@
   .pp-and .tools button.live,.pp-log .tools button.live{background:#1a9c54}
   .pp-and .tools button.accent{background:#0b7bff;color:#fff;font-weight:600}
   .pp-and .tools button.accent:hover{background:#2f93ff}
+  /* drag-a-build-onto-the-frame affordance (drop .apk / .ipa / .app to install) */
+  .pp-and .scr .dz-build{position:absolute;inset:8px;border:2px dashed #0b7bff;border-radius:16px;
+    background:rgba(11,123,255,.14);display:none;align-items:center;justify-content:center;pointer-events:none;z-index:6}
+  .pp-and .scr.dz-build-on .dz-build{display:flex}
+  .pp-and .scr .dz-build-in{color:#dbecff;font-size:14px;font-weight:700;background:rgba(0,0,0,.55);padding:9px 15px;border-radius:10px}
+  /* floating captured-screenshot card — draggable into a listing slot, auto-hides */
+  .shot-card{position:fixed;left:24px;bottom:24px;z-index:350;width:152px;background:#161618;border:1px solid #2a2a2c;
+    border-radius:12px;box-shadow:0 14px 44px rgba(0,0,0,.5);padding:8px;cursor:grab;animation:scIn .18s ease}
+  .shot-card:active{cursor:grabbing}
+  .shot-card img{width:100%;max-height:248px;object-fit:contain;border-radius:8px;display:block;background:#000;pointer-events:none}
+  .shot-card .sc-meta{margin-top:7px}
+  .shot-card .sc-name{font-size:11px;color:#cfcfd2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .shot-card .sc-hint{font-size:10.5px;color:#5fd08a;margin-top:2px}
+  .shot-card .sc-close{position:absolute;top:-9px;right:-9px;width:23px;height:23px;border-radius:50%;border:0;
+    background:#2a2a2c;color:#fff;font-size:12px;line-height:1;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .shot-card .sc-close:hover{background:#3a3a3d}
+  @keyframes scIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
   /* logs — terminal-style live stream */
   .pp-log{display:flex;flex-direction:column;height:100%;background:#0c0c0e}
   .pp-log .out{flex:1;overflow:auto;margin:0;padding:8px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -412,6 +429,19 @@
     padding:13px 15px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer}
   .set-list button:hover{border-color:var(--ink)}
   .set-list button.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  /* config / tool-paths dialog */
+  .paths-note{font-size:12.5px;color:var(--muted);background:#f6f8fb;border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin:2px 0 14px;line-height:1.5}
+  .paths-grid{display:flex;flex-direction:column;gap:10px}
+  .path-row{display:grid;grid-template-columns:1fr 230px;gap:12px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .path-label{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .path-label .pf-ok{color:var(--ok);font-size:12px} .path-label .pf-bad{color:var(--bad);font-size:12px}
+  .path-hint{font-size:12px;color:var(--muted);margin:2px 0 3px}
+  .path-resolved{font:11.5px/1.4 ui-monospace,Menlo,monospace;color:var(--muted);word-break:break-all}
+  .path-ov{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--ink);background:var(--bg);width:100%;box-sizing:border-box}
+  .path-ov:focus{border-color:var(--apple-blue);outline:none}
+  .paths-shot{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:700;color:var(--ink);margin-top:16px}
+  .paths-shot input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--ink);background:var(--bg)}
+  .paths-cfgloc{font:11px/1.5 ui-monospace,Menlo,monospace;color:var(--muted);margin-top:12px;word-break:break-all}
   .diff-imgs .cur img{outline:2px solid rgba(210,59,59,.45)}
   .diff-imgs .nw img{outline:2px solid rgba(26,156,84,.6)}
   .diff-arrow{color:var(--muted);font-size:18px;flex:none}
@@ -523,12 +553,32 @@
     <div class="diff-body">
       <div class="set-list" id="setList">
         <button class="toggle" id="checklistBtn">📋 Release checklist</button>
+        <button class="toggle" id="pathsBtn" title="Đường dẫn công cụ của sản phẩm (adb, scrcpy, emulator, iproxy, WDA…) + thư mục lưu screenshot">🛠 Config · Đường dẫn</button>
         <button class="toggle" id="exportBtn">⤓ Export</button>
         <button class="toggle" id="loadBtn">⤒ Import</button>
         <button class="toggle" id="runnersBtn" title="Quản lý máy (runner) để SSH gửi task chạy — lưu cục bộ trong trình duyệt">🖥 Runners</button>
       </div>
     </div>
     <div class="diff-foot"><span class="diff-summary"></span><button id="settingsCancel">Đóng</button></div>
+  </div>
+</div>
+<div class="diff-overlay hidden" id="pathsOverlay">
+  <div class="diff-modal">
+    <div class="diff-head"><h2>🛠 Config · Đường dẫn công cụ</h2><button id="pathsClose" aria-label="Close">✕</button></div>
+    <div class="diff-body">
+      <div class="paths-note">Đường dẫn các công cụ của sản phẩm (adb / scrcpy / emulator / iproxy / go-ios / WebDriverAgent). Để trống = tự dò trên PATH &amp; SDK. Pin đường dẫn tuyệt đối khi app không thấy công cụ.</div>
+      <div class="paths-grid" id="pathsGrid"></div>
+      <label class="paths-shot">📸 Thư mục lưu screenshot
+        <input id="pathsShotDir" type="text" placeholder="(mặc định)" spellcheck="false">
+      </label>
+      <div class="paths-cfgloc" id="pathsCfgLoc"></div>
+    </div>
+    <div class="diff-foot">
+      <span class="diff-summary" id="pathsMsg"></span>
+      <button id="pathsReload">⟳ Quét lại</button>
+      <button id="pathsSave" class="primary">💾 Lưu</button>
+      <button id="pathsCancel">Đóng</button>
+    </div>
   </div>
 </div>
 <div class="diff-overlay hidden" id="runnerOverlay">
@@ -973,6 +1023,7 @@ function setDragUI(on){
   dz.classList.toggle('show', on && isLocked());                 // big lock banner on Current
   if(!on) document.querySelectorAll('.shot.dz-over').forEach(s=>s.classList.remove('dz-over'));
 }
+window.__setDragUI=setDragUI;   // let the captured-screenshot card toggle slot frames
 // Replace a single screenshot slot with the first dropped image.
 async function replaceSlot(cat,i,files){
   if(isLocked()) return;
@@ -986,7 +1037,7 @@ async function replaceSlot(cat,i,files){
   toast(`Updated ${cat} #${i+1}${files.length>1?' — extra images ignored (one slot)':''}`);
 }
 ['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{
-  if(!hasFiles(e)) return;
+  if(!hasFiles(e) && !window.__shotDrag) return;   // OS file drag, or an in-page captured-screenshot drag
   e.preventDefault(); setDragUI(true);
   if(!isLocked()){
     const slot=e.target.closest&&e.target.closest('.shot[data-cat]');
@@ -996,12 +1047,15 @@ async function replaceSlot(cat,i,files){
 }));
 document.addEventListener('dragleave',e=>{ if(e.clientX<=0||e.clientY<=0||e.relatedTarget===null) setDragUI(false); });
 document.addEventListener('drop',async e=>{
-  if(!hasFiles(e)) return;
+  const shot=window.__shotDrag;                    // a captured screenshot being dragged into a slot
+  if(!hasFiles(e) && !shot) return;
   e.preventDefault();
   const slot=(!isLocked()&&e.target.closest)?e.target.closest('.shot[data-cat]'):null;
   setDragUI(false);
-  if(isLocked()){ toast('🔒 Current is the live store listing (read-only) — switch to New to update'); return; }
-  const files=await filesFromDrop(e.dataTransfer);
+  if(isLocked()){ toast('🔒 Current is the live store listing (read-only) — switch to New to update'); window.__shotDrag=null; return; }
+  const files = shot ? [shot] : await filesFromDrop(e.dataTransfer);
+  window.__shotDrag=null;
+  if(!files.length) return;
   if(slot) replaceSlot(slot.dataset.cat, +slot.dataset.i, files);   // drop on a slot → replace just that one
   else loadImageFiles(files);                                        // drop elsewhere → auto-sort whole galleries
 });
@@ -1506,6 +1560,48 @@ $('inlineBtn').onclick=()=>{
   $('setList').addEventListener('click', e=>{ if(e.target.closest('button')) close(); });
 })();
 
+// Config / Paths dialog — shows the resolved product tool paths (adb, scrcpy,
+// emulator, iproxy, go-ios, WebDriverAgent) + whether each was found, plus the
+// screenshot save dir. Overrides persist server-side via /api/paths.
+(function(){
+  const ov=$('pathsOverlay'); if(!ov) return;
+  const close=()=>ov.classList.add('hidden');
+  function renderCfg(d){
+    $('pathsGrid').innerHTML=(d.tools||[]).map(t=>`
+      <div class="path-row">
+        <div class="path-info">
+          <div class="path-label">${esc(t.label)} ${t.found?'<span class="pf-ok">✓ found</span>':'<span class="pf-bad">✕ missing</span>'}</div>
+          <div class="path-hint">${esc(t.hint||'')}</div>
+          <div class="path-resolved" title="${esc(t.resolved||'')}">${esc(t.resolved||'— chưa tìm thấy')}</div>
+        </div>
+        <input class="path-ov" data-key="${esc(t.key)}" value="${esc(t.override||'')}" placeholder="auto (PATH)" spellcheck="false">
+      </div>`).join('');
+    $('pathsShotDir').value=(d.config&&d.config.screenshot_dir)||'';
+    $('pathsShotDir').placeholder=d.screenshotDir||'(mặc định)';
+    $('pathsCfgLoc').textContent=d.configPath?('Lưu cấu hình tại: '+d.configPath):'';
+  }
+  async function loadCfg(){
+    $('pathsMsg').textContent='Đang tải…';
+    try{ renderCfg(await (await fetch('/api/paths')).json()); $('pathsMsg').textContent=''; }
+    catch(e){ $('pathsMsg').textContent='⚠️ '+e; }
+  }
+  async function save(){
+    const body={};
+    document.querySelectorAll('#pathsGrid .path-ov').forEach(i=>body[i.dataset.key]=i.value.trim());
+    body.screenshot_dir=$('pathsShotDir').value.trim();
+    $('pathsMsg').textContent='Đang lưu…';
+    try{ const d=await (await fetch('/api/paths',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+      if(d.ok){ renderCfg(d); $('pathsMsg').innerHTML='<span style="color:var(--ok)">✓ Đã lưu</span>'; }
+      else $('pathsMsg').textContent='⚠️ '+(d.error||'lưu thất bại');
+    }catch(e){ $('pathsMsg').textContent='⚠️ '+e; }
+  }
+  $('pathsBtn').onclick=()=>{ ov.classList.remove('hidden'); loadCfg(); };
+  $('pathsClose').onclick=close; $('pathsCancel').onclick=close;
+  $('pathsReload').onclick=loadCfg;
+  $('pathsSave').onclick=save;
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+})();
+
 // Append ?v=<token> to every local image path so the browser refetches freshly
 // synced files (same filename, new bytes) instead of serving a stale cache.
 function bustImages(obj, token){
@@ -1928,6 +2024,71 @@ window.__dragHint = function(show){
     return html;
   }
 
+  // ---- shared install + screenshot helpers (Android + iPhone) ----------------
+  function pickFile(accept){ return new Promise(res=>{ const i=document.createElement('input');
+    i.type='file'; i.accept=accept; i.style.display='none';
+    i.onchange=()=>{ res(i.files&&i.files[0]||null); i.remove(); };
+    document.body.appendChild(i); i.click(); }); }
+  const BUILD_RE=/\.(apk|apks|ipa|app)$/i;
+  const isBuildFile=f=>f&&BUILD_RE.test(f.name||'');
+  // POST a build either as a local path (desktop native drop) or an uploaded file.
+  function postBuild(url,idKey,id,src){
+    if(src.path) return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({[idKey]:id,path:src.path})}).then(r=>r.json());
+    const f=src.file, q=url+'?'+idKey+'='+encodeURIComponent(id)+'&name='+encodeURIComponent(f.name);
+    return fetch(q,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:f}).then(r=>r.json());
+  }
+  // HTML5 drop of a build file onto a device frame (browser/playground). In the
+  // desktop app the OS-level drop is captured natively and bridged through
+  // window.__installBuild instead (see Tauri lib.rs), so this is the web path.
+  function wireInstallDrop(el,kind){
+    if(!el) return;
+    const hasF=e=>e.dataTransfer&&[...(e.dataTransfer.types||[])].includes('Files');
+    el.addEventListener('dragover',e=>{ if(!hasF(e)) return; e.preventDefault(); e.stopPropagation(); el.classList.add('dz-build-on'); });
+    el.addEventListener('dragleave',e=>{ if(e.target===el) el.classList.remove('dz-build-on'); });
+    el.addEventListener('drop',e=>{ if(!hasF(e)) return; e.preventDefault(); e.stopPropagation(); el.classList.remove('dz-build-on');
+      const f=[...(e.dataTransfer.files||[])].find(isBuildFile);
+      if(!f){ if(typeof toast==='function') toast('Kéo file .apk / .ipa / .app để cài đặt'); return; }
+      kind==='android'?installAndroid({file:f}):installIos({file:f}); });
+  }
+  // Desktop native-drop bridge: Tauri calls this with a real OS path when a build
+  // file is dropped onto the window. Open the matching panel, then install.
+  window.__installBuild=async(kind,path)=>{
+    const tab=kind==='android'?'android':'iphone', wasOn=(cur===tab);
+    if(!wasOn) openTab(tab);
+    await new Promise(r=>setTimeout(r,wasOn?60:800));   // let device discovery settle
+    kind==='android'?installAndroid({path}):installIos({path});
+  };
+  // ---- captured-screenshot card: a draggable thumbnail that auto-hides in 5s.
+  // Dragging it into a listing screenshot slot reuses the image-drop pipeline via
+  // window.__shotDrag (read by the page-level drop handler).
+  let shotTimer=null;
+  async function showShotCard(path,file){
+    const old=document.getElementById('shotCard'); if(old) old.remove();
+    const url='/api/preview-file?path='+encodeURIComponent(path);
+    let blob=null; try{ blob=await (await fetch(url)).blob(); }catch(_){}
+    const objUrl=blob?URL.createObjectURL(blob):url;
+    const shotFile=blob?new File([blob],file,{type:blob.type||'image/png'}):null;
+    const card=document.createElement('div'); card.id='shotCard'; card.className='shot-card';
+    card.draggable=!!shotFile;
+    card.innerHTML='<button class="sc-close" title="Đóng">✕</button>'+
+      '<img src="'+objUrl+'" alt="screenshot" draggable="false">'+
+      '<div class="sc-meta"><div class="sc-name">'+esc(file)+'</div>'+
+      '<div class="sc-hint">'+(shotFile?'⤴ Kéo vào slot ảnh listing':'Đã lưu')+'</div></div>';
+    document.body.appendChild(card);
+    const arm=()=>{ clearTimeout(shotTimer); shotTimer=setTimeout(()=>card.remove(),5000); };
+    arm();
+    card.addEventListener('mouseenter',()=>clearTimeout(shotTimer));
+    card.addEventListener('mouseleave',arm);
+    card.querySelector('.sc-close').onclick=()=>{ clearTimeout(shotTimer); card.remove(); };
+    card.addEventListener('dragstart',e=>{ clearTimeout(shotTimer);
+      window.__shotDrag=shotFile;
+      try{ e.dataTransfer.setData('text/plain',file); e.dataTransfer.setData('text/uri-list',url); }catch(_){}
+      e.dataTransfer.effectAllowed='copy'; });
+    card.addEventListener('dragend',()=>{ window.__shotDrag=null;
+      if(typeof window.__setDragUI==='function') window.__setDragUI(false); arm(); });
+  }
+
   // ---- ANDROID (mirror + remote control via adb; scrcpy for native window) ----
   let andLive=false, andSerial=null, andImg=null, andGen=0;
   function stopAndroid(){ andLive=false; andGen++; andImg=null; }
@@ -1938,12 +2099,14 @@ window.__dragHint = function(show){
         <select id="andDev"><option>scanning…</option></select>
         <button id="andRefresh" title="Rescan devices">⟳</button>
         <button id="andLiveBtn" title="Toggle live mirror">▶ Live</button>
+        <button id="andShot" title="Chụp màn hình → hiện khung ảnh để kéo vào slot listing (tự ẩn sau 5s)">📸</button>
+        <button id="andInstall" title="Cài APK lên thiết bị — hoặc kéo thẳng file .apk vào khung bên dưới">📦 APK</button>
         <button id="andScrcpy" class="accent" title="Open a native scrcpy window — high-FPS mirror &amp; control">⚡ scrcpy</button>
         <select id="andAvd" title="Android Virtual Devices (emulators)"><option value="">emulator…</option></select>
         <button id="andBoot" title="Boot the selected emulator (AVD)">▶ Boot</button>
         <span class="st" id="andSt"></span>
       </div>
-      <div class="scr" id="andScr"><div class="nodev">Connect a device with USB debugging,<br>then press ⟳.</div></div>
+      <div class="scr" id="andScr"><div class="nodev">Connect a device with USB debugging,<br>then press ⟳.<br><span style="opacity:.6">Kéo file .apk vào đây để cài đặt.</span></div><div class="dz-build"><div class="dz-build-in">⤓ Thả .apk để cài đặt</div></div></div>
       <div class="navbar">
         <button data-key="recents" title="Recent apps">▭</button>
         <button data-key="home" title="Home">○</button>
@@ -1960,8 +2123,11 @@ window.__dragHint = function(show){
       </div></div>`;
     body.querySelector('#andRefresh').onclick=()=>{ loadDevices(); loadAvds(); };
     body.querySelector('#andLiveBtn').onclick=toggleLive;
+    body.querySelector('#andShot').onclick=captureAndroid;
+    body.querySelector('#andInstall').onclick=async()=>{ const f=await pickFile('.apk,.apks'); if(f) installAndroid({file:f}); };
     body.querySelector('#andScrcpy').onclick=launchScrcpy;
     body.querySelector('#andBoot').onclick=bootEmu;
+    wireInstallDrop(body.querySelector('#andScr'),'android');
     body.querySelector('#andDev').onchange=e=>{ andSerial=e.target.value||null; if(andLive){ stopAndroid(); startLive(); } else snap(); };
     body.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>sendKey(b.dataset.key));
     const ti=body.querySelector('#andText');
@@ -2075,6 +2241,25 @@ window.__dragHint = function(show){
       setSt(d.ok?(d.already?'scrcpy already open':'<b>scrcpy launched</b>'):'⚠️ '+(d.error||'failed')); }
     catch(e){ setSt('⚠️ '+e); }
   }
+  // Install an APK onto the connected device. `src` is {file} (browser drop /
+  // picker → upload bytes) or {path} (desktop native drop → server reads it).
+  async function installAndroid(src){
+    if(!andSerial){ await loadDevices(); }
+    if(!andSerial){ setSt('⚠️ no device — connect one first'); return; }
+    setSt('📦 installing APK…');
+    try{ const d=await postBuild('/api/adb/install','serial',andSerial,src);
+      setSt(d.ok?'<b>installed ✓</b>':'⚠️ '+(d.error||'install failed'));
+      if(d.ok && !andLive) setTimeout(snap,500);
+    }catch(e){ setSt('⚠️ '+e); }
+  }
+  async function captureAndroid(){
+    if(!andSerial){ setSt('⚠️ no device'); return; }
+    setSt('📸 capturing…');
+    try{ const d=await (await fetch('/api/adb/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serial:andSerial})})).json();
+      if(!d.ok){ setSt('⚠️ '+(d.error||'capture failed')); return; }
+      setSt('<b>saved ✓</b> '+esc(d.file)); showShotCard(d.path,d.file);
+    }catch(e){ setSt('⚠️ '+e); }
+  }
 
   // ---- iPhone (real device) via WebDriverAgent — mirror + control over USB ----
   let iosLive=false, iosUdid=null, iosImg=null, iosGen=0, iosSize=null, iosKinds={};
@@ -2090,10 +2275,12 @@ window.__dragHint = function(show){
         <button id="iosBoot" class="hidden" title="Boot the selected simulator (live screen only)">▶ Boot</button>
         <button id="iosStart" title="Launch WebDriverAgent for tap/swipe control">▶ Start WDA</button>
         <button id="iosLiveBtn" title="Toggle live mirror">▶ Live</button>
+        <button id="iosShot" title="Chụp màn hình → hiện khung ảnh để kéo vào slot listing (tự ẩn sau 5s)">📸</button>
+        <button id="iosInstall" title="Cài app lên máy — Simulator: .app/.ipa · thiết bị thật: .ipa (hoặc kéo file vào khung)">📦 App</button>
         <button id="iosHelp" title="Setup help — how to launch WebDriverAgent">ⓘ Setup</button>
         <span class="st" id="iosSt"></span>
       </div>
-      <div class="scr" id="iosScr"><div class="nodev">Connect an iPhone &amp; launch WebDriverAgent,<br>then press ⟳.</div></div>
+      <div class="scr" id="iosScr"><div class="nodev">Connect an iPhone &amp; launch WebDriverAgent,<br>then press ⟳.<br><span style="opacity:.6">Kéo file .ipa/.app vào đây để cài đặt.</span></div><div class="dz-build"><div class="dz-build-in">⤓ Thả .ipa/.app để cài đặt</div></div></div>
       <div class="navbar">
         <button data-act="home" title="Home">○</button>
         <button data-act="voldown" title="Volume −">🔉</button>
@@ -2107,7 +2294,10 @@ window.__dragHint = function(show){
     body.querySelector('#iosRefresh').onclick=loadIosDevices;
     body.querySelector('#iosStart').onclick=iosStart;
     body.querySelector('#iosBoot').onclick=iosBoot;
+    body.querySelector('#iosShot').onclick=captureIos;
+    body.querySelector('#iosInstall').onclick=async()=>{ const f=await pickFile('.ipa,.app'); if(f) installIos({file:f}); };
     body.querySelector('#iosHelp').onclick=()=>{ stopIos(); paintIosSetup(); };
+    wireInstallDrop(body.querySelector('#iosScr'),'ios');
     body.querySelector('#iosLiveBtn').onclick=()=>{ iosLive?stopIos():iosStatus(); setIosLiveBtn(iosLive); };
     body.querySelector('#iosDev').onchange=e=>{ iosUdid=e.target.value||null; reflectIosKind(); stopIos(); iosStatus(); };
     body.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{ const a=b.dataset.act;
@@ -2258,6 +2448,22 @@ window.__dragHint = function(show){
     if(!iosUdid) return; payload.udid=iosUdid;
     try{ await fetch('/api/wda/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       if(!iosLive){ const im=ensureIosImg(); if(im) setTimeout(()=>{ im.src=iosFrameUrl(); },200); } }catch(_){}
+  }
+  // Install a build onto the selected iPhone/simulator (drop or picker).
+  async function installIos(src){
+    if(!iosUdid){ await loadIosDevices(); if(!iosUdid){ setIosSt('⚠️ no device'); return; } }
+    setIosSt('📦 installing app…');
+    try{ const d=await postBuild('/api/ios/install','udid',iosUdid,src);
+      setIosSt(d.ok?'<b>installed ✓</b>'+(d.sim?' (simulator)':''):'⚠️ '+(d.error||'install failed'));
+    }catch(e){ setIosSt('⚠️ '+e); }
+  }
+  async function captureIos(){
+    if(!iosUdid){ setIosSt('⚠️ no device'); return; }
+    setIosSt('📸 capturing…');
+    try{ const d=await (await fetch('/api/ios/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({udid:iosUdid})})).json();
+      if(!d.ok){ setIosSt('⚠️ '+(d.error||'capture failed')); return; }
+      setIosSt('<b>saved ✓</b> '+esc(d.file)); showShotCard(d.path,d.file);
+    }catch(e){ setIosSt('⚠️ '+e); }
   }
 
   // ---- LOGS — live logcat / syslog / simctl stream from the selected target ----

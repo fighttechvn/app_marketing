@@ -106,6 +106,67 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  # ── macOS Intel .dmg (+ updater .app.tar.gz/.sig) → workflow artifact ──────────
+  # Built natively on an Intel runner: the PyInstaller Python sidecar can't
+  # cross-compile, so an x86_64 sidecar requires an x86_64 host. macos-13 is the
+  # last Intel-based GitHub-hosted runner. Updater bundle is renamed to
+  # AppPreview_x64.app.tar.gz so it never collides with the aarch64 one.
+  macos_intel:
+    needs: check
+    if: needs.check.outputs.proceed == 'true'
+    runs-on: macos-13              # x86_64 (Intel — x86_64-apple-darwin)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Tauri CLI deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: Prepare notary key
+        env:
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+        run: |
+          if [ -n "$APPLE_API_KEY_B64" ]; then
+            echo "$APPLE_API_KEY_B64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build .dmg (icons → sidecar → tauri)
+        working-directory: desktop
+        run: bash scripts/build.sh
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Stage macOS Intel artifacts
+        run: |
+          mkdir -p dist
+          B=desktop/src-tauri/target/release/bundle
+          cp "$B"/dmg/*.dmg dist/ 2>/dev/null || true
+          # Rename the updater bundle so it doesn't collide with the aarch64 one.
+          cp "$B"/macos/AppPreview.app.tar.gz dist/AppPreview_x64.app.tar.gz 2>/dev/null || true
+          cp "$B"/macos/AppPreview.app.tar.gz.sig dist/AppPreview_x64.app.tar.gz.sig 2>/dev/null || true
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos-intel
+          path: dist/*
+          if-no-files-found: error
+
   # ── Windows .exe NSIS (+ updater .sig) → workflow artifact ─────────────────────
   windows:
     needs: check
@@ -162,9 +223,10 @@ jobs:
 
   # ── Single release job: gather artifacts, build latest.json, create tag+Release ─
   release:
-    needs: [check, macos, windows]
-    # Ship as long as macOS built; Windows is included when it also succeeded so a
-    # first-time Windows failure never blocks the macOS release.
+    needs: [check, macos, macos_intel, windows]
+    # Ship as long as the macOS (arm64) build succeeded; Intel and Windows are
+    # included only when they also succeeded, so a failure of either never blocks
+    # the macOS release.
     if: always() && needs.check.outputs.proceed == 'true' && needs.macos.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -172,6 +234,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dist-macos
+          path: dist
+
+      - name: Download macOS Intel artifacts
+        if: needs.macos_intel.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-macos-intel
           path: dist
 
       - name: Download Windows artifacts
@@ -202,6 +271,14 @@ jobs:
                   "url": f"{base}/AppPreview.app.tar.gz",
               }
 
+          # macOS (x86_64 / Intel) — separate updater bundle (AppPreview_x64.app.tar.gz).
+          mac_x64_sig = "dist/AppPreview_x64.app.tar.gz.sig"
+          if os.path.exists(mac_x64_sig):
+              platforms["darwin-x86_64"] = {
+                  "signature": open(mac_x64_sig).read().strip(),
+                  "url": f"{base}/AppPreview_x64.app.tar.gz",
+              }
+
           # Windows (x86_64) — updater downloads the NSIS setup.exe; sig is its .sig.
           win_sig = glob.glob("dist/*-setup.exe.sig")
           if win_sig:
@@ -230,13 +307,17 @@ jobs:
             dist/*.dmg
             dist/AppPreview.app.tar.gz
             dist/AppPreview.app.tar.gz.sig
+            dist/AppPreview_x64.app.tar.gz
+            dist/AppPreview_x64.app.tar.gz.sig
             dist/*-setup.exe
             dist/latest.json
           fail_on_unmatched_files: false
           body: |
             App Preview — desktop build (auto-released from uat).
 
-            • macOS (.dmg): signed with Developer ID & notarized — opens with no Gatekeeper warning.
+            • macOS Apple Silicon (`*_aarch64.dmg`): for M1/M2/M3/M4 Macs.
+            • macOS Intel (`*_x64.dmg`): for older Intel Macs.
+              Both are signed with Developer ID & notarized — open with no Gatekeeper warning.
             • Windows (.exe): NSIS installer. Not Authenticode-signed yet, so SmartScreen may warn once
               → click "More info" ▸ "Run anyway". The app itself runs fine.
 

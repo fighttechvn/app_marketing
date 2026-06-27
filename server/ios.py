@@ -511,6 +511,33 @@ def _ipa_app(path):
     return hits[0] if hits else ""
 
 
+def _app_bundle_id(app):
+    """CFBundleIdentifier from a .app's Info.plist — '' if unreadable. Used to
+    auto-launch the app right after installing it onto a simulator."""
+    try:
+        import plistlib
+        with open(os.path.join(app, "Info.plist"), "rb") as f:
+            return plistlib.load(f).get("CFBundleIdentifier", "") or ""
+    except Exception:
+        return ""
+
+
+def _ipa_bundle_id(path):
+    """CFBundleIdentifier read straight out of an .ipa (Payload/<App>.app/Info.plist),
+    so we can auto-launch on a real device without unzipping the whole payload."""
+    try:
+        import plistlib
+        with zipfile.ZipFile(path) as z:
+            for n in z.namelist():
+                parts = n.split("/")
+                if (len(parts) == 3 and parts[0] == "Payload"
+                        and parts[1].endswith(".app") and parts[2] == "Info.plist"):
+                    return plistlib.loads(z.read(n)).get("CFBundleIdentifier", "") or ""
+    except Exception:
+        pass
+    return ""
+
+
 def ios_install(udid, path):
     """Install a build dropped onto the iPhone frame. Simulator → `simctl install`
     (.app, or the .app unzipped from an .ipa); real device → `go-ios install` of an
@@ -535,7 +562,15 @@ def ios_install(udid, path):
         out, err, rc = run([XCRUN, "simctl", "install", udid, app], timeout=180)
         if rc != 0:
             return {"ok": False, "error": (err.strip() or out.strip() or "simctl install failed")[:300]}
-        return {"ok": True, "out": "installed on simulator", "sim": True}
+        # Auto-open the freshly installed app (best-effort — needs the bundle id
+        # from Info.plist; silently skipped if it can't be read).
+        bundle = _app_bundle_id(app)
+        launched = False
+        if bundle:
+            _, _, lrc = run([XCRUN, "simctl", "launch", udid, bundle], timeout=30)
+            launched = lrc == 0
+        return {"ok": True, "out": "installed on simulator", "sim": True,
+                "bundle": bundle, "launched": launched}
     # real device → go-ios
     if not _go_ok():
         return {"ok": False, "error": "go-ios not installed (npm i -g go-ios) — needed to install on a real iPhone"}
@@ -545,7 +580,13 @@ def ios_install(udid, path):
     msg = (out or "") + (err or "")
     if rc != 0 or "failed" in msg.lower() or "error" in msg.lower():
         return {"ok": False, "error": (msg.strip() or "go-ios install failed")[:300]}
-    return {"ok": True, "out": "installed on device"}
+    # Auto-open the freshly installed app (best-effort — go-ios launch <bundleId>).
+    bundle = _ipa_bundle_id(path)
+    launched = False
+    if bundle:
+        _, _, lrc = run([go_ios_bin(), "launch", bundle, "--udid=" + udid], timeout=30)
+        launched = lrc == 0
+    return {"ok": True, "out": "installed on device", "bundle": bundle, "launched": launched}
 
 
 def ios_capture(udid, dest_dir):

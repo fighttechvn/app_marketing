@@ -2467,7 +2467,9 @@ window.__dragHint = function(show){
     if(!iosUdid){ await loadIosDevices(); if(!iosUdid){ setIosSt('⚠️ no device'); return; } }
     setIosSt('📦 installing app…');
     try{ const d=await postBuild('/api/ios/install','udid',iosUdid,src);
-      setIosSt(d.ok?'<b>installed ✓</b>'+(d.sim?' (simulator)':''):'⚠️ '+(d.error||'install failed'));
+      setIosSt(d.ok?('<b>installed ✓</b>'+(d.sim?' (simulator)':'')+(d.launched?' · đã mở app':'')+(d.bundle?' · '+esc(d.bundle):''))
+                  :'⚠️ '+(d.error||'install failed'));
+      if(d.ok && !iosLive){ const im=ensureIosImg(); if(im) setTimeout(()=>{ im.src=iosFrameUrl(); },900); }   // app launched → refresh the still frame
     }catch(e){ setIosSt('⚠️ '+e); }
   }
   async function captureIos(){

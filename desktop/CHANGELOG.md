@@ -4,6 +4,27 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
 `desktop-v<version>` and published to
 [GitHub Releases](https://github.com/fighttechvn/app_marketing/releases).
 
+## 0.4.7 — 2026-06-27
+
+**Install builds by drag-and-drop, capture screenshots, and a persistent config.**
+
+### Added
+- **Drag-to-install builds.** Drop an `.apk`/`.ipa` anywhere on the device frame
+  to install it on the connected Android device/emulator or iOS device — the
+  drop overlay now stays available even while the live screen mirror is running.
+  Android installs auto-open the app afterwards.
+- **Screenshot capture.** Grab the current device screen and dock the screenshot
+  card beside the frame (configurable save folder).
+- **Tool-paths config.** A Config/Paths dialog to point the app at specific
+  binaries — `adb`, `aapt`, `scrcpy`, `emulator`, `iproxy`, `go-ios`, the
+  WebDriverAgent project, and the screenshot directory — for machines where they
+  aren't on `PATH`. Blank means auto-detect.
+- **Persistent app config.** Runners, the active runner, app settings (release
+  checklist), and the tool-path overrides now persist server-side to a single
+  `~/.apppreview` file instead of browser localStorage, so they survive reloads
+  and are shared across browsers and the desktop app. Build/release notes already
+  hand-authored in that file (and their comments) are preserved on save.
+
 ## 0.4.6 — 2026-06-26
 
 **Remote iOS device control + Runners.**

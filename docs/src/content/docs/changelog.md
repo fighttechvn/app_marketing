@@ -11,6 +11,56 @@ Release notes for the **App Preview** macOS desktop app. Each version is publish
 
 👉 **[Download the latest .dmg](https://github.com/fighttechvn/app_marketing/releases/latest)**
 
+## 0.4.7 — 2026-06-27
+
+**Install builds by drag-and-drop, capture screenshots, and a persistent config.**
+
+### ✨ Highlights
+
+- **Drag-to-install builds** — drop an `.apk` / `.ipa` anywhere on the device frame to
+  install it on the connected Android device/emulator or iOS device. The drop overlay
+  stays available even while the live screen mirror is running, and Android installs
+  **auto-open** the app afterwards.
+- **Screenshot capture** — grab the current device screen and dock the screenshot card
+  beside the frame, with a configurable save folder.
+- **Config / Paths dialog** — point the app at specific tool binaries (`adb`, `aapt`,
+  `scrcpy`, `emulator`, `iproxy`, `go-ios`, the WebDriverAgent project) and the
+  screenshot directory, for machines where they aren't on `PATH`. Blank means auto-detect.
+- **Persistent app config** — Runners, settings (the release checklist) and the
+  tool-path overrides now persist to a single `~/.apppreview` file instead of browser
+  localStorage, so they survive reloads and are shared across browsers and the desktop app.
+
+## 0.4.6 — 2026-06-26
+
+**Remote iOS device control + Runners.**
+
+### ✨ Highlights
+
+- **Remote iOS control over SSH** — drive a physical iPhone/iPad attached to *another*
+  machine straight from the Playground: tap, swipe and mirror over an SSH connection to a
+  "runner" host. A Runners / Settings dialog adds hosts, picks **password or SSH-key**
+  auth, and tests the connection before use.
+- **Runner sharing** — export/import the runner list as JSON, plus an **"Initial Runner"**
+  action that shares the current machine's SSH config so another operator can import it in
+  one step.
+
+### Notes
+- iOS 26: remote tap uses W3C pointer actions (the legacy endpoint returns 500 there).
+- Android emulator launch resolves the modern emulator binary on Windows; the server no
+  longer crashes at startup on a non-UTF-8 Windows console.
+
+## 0.4.1 – 0.4.5 — 2026-06-25 → 26
+
+**Windows support + multi-arch builds.**
+
+### ✨ Highlights
+
+- **Windows desktop app** — signed NSIS `.exe` installer builds alongside macOS, with
+  fixes for the Windows blank-window/launch issue and a non-UTF-8 console crash.
+- **macOS Intel + Apple Silicon** — separate Intel (`x64`) and Apple-Silicon (`aarch64`)
+  `.dmg` builds, combined into one auto-update manifest so every Mac gets the right slice.
+- **Per-platform download buttons** on the landing page (Mac arm / Mac Intel / Windows).
+
 ## 0.3.0 — 2026-06-25
 
 **Preview panel + real-device mirroring.** The Playground gains a slide-in **preview

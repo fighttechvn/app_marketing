@@ -1,7 +1,7 @@
 {
   "name": "app-store-marketing-preview-desktop",
   "private": true,
-  "version": "0.4.7",
+  "version": "0.5.0",
   "description": "Tauri desktop wrapper (macOS .dmg + Windows .exe) for the store-preview tool.",
   "scripts": {
     "tauri": "tauri",

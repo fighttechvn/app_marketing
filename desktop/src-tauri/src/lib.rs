@@ -169,13 +169,25 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).ok();
             let data_dir = data_dir.to_string_lossy().to_string();
 
+            // Bundled native tools (UxPlay + GStreamer for the AirPlay mirror) ship as a
+            // Tauri resource at <resources>/tools. Pass the path to the Python sidecar,
+            // which launches uxplay; empty string when it isn't bundled (→ system tools).
+            let tools_dir = app
+                .path()
+                .resource_dir()
+                .map(|r| r.join("tools"))
+                .ok()
+                .filter(|p| p.is_dir())
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+
             // `child` is MOVED into the long-lived task below (not dropped at the end of
             // setup) so the sidecar lives for the whole app session.
             let (mut rx, child) = app
                 .shell()
                 .sidecar("serve")
                 .expect("sidecar `serve` not found")
-                .args(["--port", "0", "--data-dir", &data_dir])
+                .args(["--port", "0", "--data-dir", &data_dir, "--tools-dir", &tools_dir])
                 .spawn()
                 .expect("failed to spawn sidecar");
 

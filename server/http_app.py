@@ -6,7 +6,7 @@ served on 0.0.0.0 / the LAN.
 """
 import os, sys, json, tempfile, http.server, urllib.parse, socket, getpass
 from . import context
-from . import stores, project, android, ios, preview, logs, remote, config
+from . import stores, project, android, ios, airplay, preview, logs, remote, config
 
 
 def host_info():
@@ -148,6 +148,28 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             pass   # client closed the stream (switched tabs / device); stop relaying
 
+    def _proxy_airplay_mjpeg(self):
+        """Relay UxPlay's local MJPEG stream (AirPlay mirror) to the browser <img>."""
+        try:
+            sock = airplay.airplay_open_mjpeg()
+        except Exception as e:
+            self._json(502, {"ok": False, "error": "AirPlay stream unavailable — " + str(e)[:120]})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=" + airplay.MJPEG_BOUNDARY)
+        self.end_headers()
+        try:
+            while True:
+                chunk = sock.recv(8192)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+        except Exception:
+            pass   # client closed the stream (switched tabs / stopped) — stop relaying
+        finally:
+            try: sock.close()
+            except Exception: pass
+
     def _stream_logs(self, kind, ident, level):
         """Relay a device/sim log stream to the browser as chunked text/plain.
         The subprocess is killed when the client disconnects (tab switch/close)."""
@@ -244,6 +266,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if route == "/api/wda/mjpeg":
             self._proxy_mjpeg(self._query("udid"))
             return
+        if route == "/api/airplay/status":
+            try: self._json(200, airplay.airplay_status())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/airplay/mjpeg":
+            self._proxy_airplay_mjpeg()
+            return
+        if route == "/api/airplay/view":
+            # Standalone viewer page (the "⤢ separate window" button opens this) —
+            # a full-bleed <img> on the live MJPEG mirror.
+            html = ("<!doctype html><meta charset=utf-8><title>AirPlay — AppPreview</title>"
+                    "<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}"
+                    "img{width:100%;height:100%;object-fit:contain;display:block}</style>"
+                    "<img src='/api/airplay/mjpeg' alt='AirPlay mirror'>").encode()
+            self._bin(200, html, "text/html; charset=utf-8")
+            return
         # ---- Preview panel: live logs (logcat / syslog / simctl log stream) ----
         if route == "/api/logs/targets":
             try: self._json(200, logs.log_targets())
@@ -328,6 +366,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         if route == "/api/wda/launch":
             try: self._json(200, ios.ios_launch(self._json_body().get("udid") or None))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/airplay/start":
+            try: self._json(200, airplay.airplay_start(self._json_body()))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/airplay/stop":
+            try: self._json(200, airplay.airplay_stop())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/airplay/capture":
+            try: self._json(200, airplay.airplay_capture(config.screenshot_dir()))
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
         if route == "/api/ios/connect":

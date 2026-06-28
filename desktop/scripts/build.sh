@@ -75,6 +75,14 @@ fi
 # 2) Python sidecar.
 bash scripts/build-sidecar.sh
 
+# 2a) Bundle UxPlay + GStreamer for the AirPlay iPhone-Mirror (src-tauri/tools/).
+#     Non-fatal: if it fails the app still ships and falls back to a system UxPlay.
+#     Set BUNDLE_AIRPLAY=0 to skip (smaller .dmg, AirPlay then needs `brew install uxplay`).
+if [ "${BUNDLE_AIRPLAY:-1}" != "0" ]; then
+  echo "→ bundling UxPlay + GStreamer (AirPlay)"
+  bash scripts/build-uxplay-gstreamer.sh macos || echo "⚠️  AirPlay bundling failed — shipping without it"
+fi
+
 # 2b) Sign the sidecar with hardened runtime so notarization passes (Tauri then
 #     signs the app around it). Skipped when no identity is configured.
 if [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ -n "$TRIPLE" ]; then
@@ -83,6 +91,17 @@ if [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ -n "$TRIPLE" ]; then
     --entitlements src-tauri/entitlements.plist \
     --sign "$APPLE_SIGNING_IDENTITY" \
     "src-tauri/binaries/serve-$TRIPLE" || echo "⚠️  sidecar codesign failed"
+  # Sign the bundled UxPlay + every GStreamer dylib (hardened runtime) so the
+  # notarized .app can load them. Library validation is disabled in entitlements,
+  # but notarization still wants each Mach-O signed.
+  if [ -d src-tauri/tools ]; then
+    echo "→ codesigning bundled AirPlay tools (uxplay + GStreamer dylibs)"
+    while IFS= read -r f; do
+      codesign --force --options runtime --timestamp \
+        --entitlements src-tauri/entitlements.plist \
+        --sign "$APPLE_SIGNING_IDENTITY" "$f" 2>/dev/null || echo "⚠️  codesign failed: $f"
+    done < <(find src-tauri/tools \( -name 'uxplay' -o -name '*.dylib' \) -type f)
+  fi
 fi
 
 # 3) Tauri build → .app + .dmg (signs + notarizes when the signing env is set).

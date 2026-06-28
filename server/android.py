@@ -203,6 +203,87 @@ def adb_scrcpy(serial=None):
     return {"ok": True, "launched": True}
 
 
+# ---- Wireless adb (mirror over Wi-Fi, no cable) ----------------------------
+# Three ways in, all standard adb: (1) USB→Wi-Fi: flip a cabled device to TCP mode
+# with `adb tcpip 5555`, read its IP, connect, unplug. (2) Direct `adb connect
+# ip:5555` if Wi-Fi adb is already on. (3) `adb pair ip:port code` for Android 11+
+# "Wireless debugging" first-time pairing, then connect. Once connected the Wi-Fi
+# device is just another entry in `adb devices` — mirror/control code is unchanged.
+
+def _device_ip(serial):
+    """The device's Wi-Fi (wlan0) IPv4, for the USB→Wi-Fi auto-connect step."""
+    out, _, _ = _adb(["shell", "ip", "-f", "inet", "addr", "show", "wlan0"], serial=serial, timeout=8)
+    m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", out or "")
+    if m:
+        return m.group(1)
+    out, _, _ = _adb(["shell", "ip", "route"], serial=serial, timeout=8)   # fallback
+    m = re.search(r"\bsrc (\d+\.\d+\.\d+\.\d+)", out or "")
+    return m.group(1) if m else ""
+
+
+def adb_connect(addr):
+    """`adb connect ip[:port]` (defaults to :5555)."""
+    if not have(adb_bin()):
+        return {"ok": False, "error": "adb not found (set it in Config / Paths)"}
+    addr = (addr or "").strip()
+    if not addr:
+        return {"ok": False, "error": "no address — enter IP:port"}
+    if ":" not in addr:
+        addr += ":5555"
+    out, err, _ = _adb(["connect", addr], timeout=20)
+    msg = ((out or "") + (err or "")).strip()
+    low = msg.lower()
+    ok = "connected to" in low or "already connected" in low
+    res = {"ok": ok, "addr": addr, "out": msg[:300]}
+    if not ok:
+        res["error"] = msg[:300] or "connect failed"
+    return res
+
+
+def adb_pair(addr, code):
+    """`adb pair ip:port code` — Android 11+ Wireless-debugging first-time pairing."""
+    if not have(adb_bin()):
+        return {"ok": False, "error": "adb not found"}
+    addr = (addr or "").strip(); code = (code or "").strip()
+    if not addr or not code:
+        return {"ok": False, "error": "need the pairing IP:port and the 6-digit code"}
+    out, err, _ = _adb(["pair", addr, code], timeout=25)
+    msg = ((out or "") + (err or "")).strip()
+    ok = "successfully paired" in msg.lower()
+    res = {"ok": ok, "out": msg[:300]}
+    if not ok:
+        res["error"] = msg[:300] or "pair failed"
+    return res
+
+
+def adb_disconnect(addr):
+    """`adb disconnect [ip:port]` — drops one Wi-Fi device, or all if blank."""
+    if not have(adb_bin()):
+        return {"ok": False, "error": "adb not found"}
+    addr = (addr or "").strip()
+    out, err, rc = _adb(["disconnect"] + ([addr] if addr else []), timeout=10)
+    return {"ok": rc == 0, "out": ((out or "") + (err or "")).strip()[:200]}
+
+
+def adb_tcpip(serial):
+    """Flip a USB-connected device to Wi-Fi adb (`tcpip 5555`), then auto-connect
+    over its Wi-Fi IP so the cable can be unplugged."""
+    if not have(adb_bin()):
+        return {"ok": False, "error": "adb not found"}
+    if not serial:
+        return {"ok": False, "error": "select a USB-connected device first"}
+    ip = _device_ip(serial)
+    out, err, rc = _adb(["tcpip", "5555"], serial=serial, timeout=15)
+    msg = ((out or "") + (err or "")).strip()
+    if rc != 0 and "restarting" not in msg.lower():
+        return {"ok": False, "error": msg[:200] or "adb tcpip failed"}
+    time.sleep(1.2)                      # let adbd restart in TCP mode
+    if not ip:
+        return {"ok": True, "ip": "", "hint": "couldn't read the device Wi-Fi IP — "
+                "enter IP:5555 manually (Settings ▸ About ▸ Status)"}
+    return {"ok": True, "ip": ip, "addr": ip + ":5555", "connect": adb_connect(ip + ":5555")}
+
+
 # ---- Android emulator (AVD) management -------------------------------------
 # A booted emulator shows up in `adb devices` as emulator-NNNN and is then
 # driven by the exact same mirror/control code as a physical phone. These two

@@ -92,34 +92,52 @@ build_windows() {
     "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}-gst-plugins-base" \
     "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}-gst-plugins-good" \
     "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}-gst-plugins-bad" \
+    "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}-gst-libav" \
+    "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}-json-glib" \
     "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}-libplist" || true
+  # json-glib: several gst-plugins-bad plugins (e.g. codec2json) link it; without it
+  # they fail to load with "specified module could not be found".
+  # gst-libav supplies avdec_h264 — a pure-software H.264 decoder. gst-plugins-bad
+  # also ships hardware decoders (d3d11h264dec/openh264dec), but bundling the
+  # software fallback keeps the mirror decoding on a clean box whose GPU/driver
+  # stack may not expose a DXVA H.264 decoder.
 
   local UX="${UXPLAY_EXE:-}"
   if [ -z "$UX" ]; then
     echo "→ building UxPlay from source (FDH2/UxPlay)"
-    pacman -S --needed --noconfirm "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}"-{cmake,gcc,openssl} git || true
+    # Ninja (not "Unix Makefiles"): MSYS2/ucrt64 ships no `make`, so the Makefiles
+    # generator can't find a build program and cmake aborts before compiler probing.
+    pacman -S --needed --noconfirm "${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}"-{cmake,gcc,openssl,ninja} git || true
     local SRC="$DESKTOP/.uxplay-src"
     rm -rf "$SRC"; git clone --depth 1 https://github.com/FDH2/UxPlay "$SRC"
-    cmake -S "$SRC" -B "$SRC/build" -G "Unix Makefiles"
-    cmake --build "$SRC/build" --config Release
+    # NO_MARCH_NATIVE: UxPlay defaults to -march=native, which tunes the binary to
+    # the build box's CPU — a relocatable bundle must run on clean machines with a
+    # different (older) CPU, where native-ISA instructions would SIGILL. Build for a
+    # generic baseline instead.
+    cmake -S "$SRC" -B "$SRC/build" -G Ninja -DNO_MARCH_NATIVE=ON
+    cmake --build "$SRC/build"
     UX="$(find "$SRC/build" -name 'uxplay.exe' | head -1)"
   fi
   [ -n "$UX" ] && [ -f "$UX" ] || { echo "✗ uxplay.exe not found/built"; exit 1; }
   cp "$UX" "$TOOLS/uxplay.exe"
 
-  echo "→ copying GStreamer plugins + resolving DLL deps"
+  echo "→ copying GStreamer plugins + DLLs"
   cp -R "$PREFIX"/lib/gstreamer-1.0 "$GST/lib/" 2>/dev/null || true
-  # Gather every ucrt64 DLL that uxplay.exe + the plugins depend on into gstreamer/bin.
-  gather_win_dlls() {
-    ldd "$1" 2>/dev/null | awk '{print $3}' | grep -i "$PREFIX" || true
-  }
-  { gather_win_dlls "$TOOLS/uxplay.exe"
-    find "$GST/lib/gstreamer-1.0" -name '*.dll' -exec bash -c 'ldd "$0" 2>/dev/null | awk "{print \$3}"' {} \; \
-      | grep -i "$PREFIX" || true
-  } | sort -u | while IFS= read -r dll; do
-    [ -f "$dll" ] && cp -n "$dll" "$GST/bin/" || true
-  done
-  echo "✓ Windows tools bundled → $TOOLS"
+  # Ship the FULL $PREFIX/bin DLL set, not just uxplay.exe's direct `ldd` deps.
+  # GStreamer plugins are dlopen'd at runtime and pull in transitive DLLs that an
+  # ldd of uxplay.exe alone never sees, so a targeted gather misses them and the
+  # plugin fails to load on a clean machine ("the specified module could not be
+  # found"). Copying all of bin/ is the bulletproof "widen the gather": every
+  # installed dependency is present. (Cost: a few dozen extra MB of DLLs.)
+  cp -n "$PREFIX"/bin/*.dll "$GST/bin/" 2>/dev/null || true
+  # Drop the GStreamer Vulkan integration. The mirror renders via the MJPEG
+  # tcpserversink, never Vulkan — but copying all of bin/ pulls in
+  # libgstvulkan-1.0-0.dll, which LOAD-TIME imports Vulkan 1.3 entry points
+  # (e.g. vkCmdPipelineBarrier2) that an older system vulkan-1.dll doesn't export.
+  # Windows then pops a BLOCKING "Entry Point Not Found" dialog the instant uxplay
+  # loads GStreamer. Removing the plugin + its helper is safe and silences it.
+  rm -f "$GST"/lib/gstreamer-1.0/libgstvulkan.dll "$GST"/bin/libgstvulkan-1.0-0.dll
+  echo "✓ Windows tools bundled → $TOOLS ($(ls "$GST/bin"/*.dll 2>/dev/null | wc -l) DLLs)"
 }
 
 reset_tools

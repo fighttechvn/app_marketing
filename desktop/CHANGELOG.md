@@ -28,10 +28,11 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
   to a system install (`brew install uxplay` / MSYS2). New `uxplay` entry in the
   Config ▸ Paths dialog to point at a specific binary.
 - **Android over Wi-Fi (wireless adb).** A 📶 WiFi button on the Android tab to
-  mirror without a cable — USB→Wi-Fi one-tap (`adb tcpip` + auto-connect), direct
-  `IP:port` connect, or Android 11+ Wireless-debugging pairing
-  (`adb pair`/`connect`), plus disconnect. Wi-Fi devices then mirror/control
-  exactly like USB ones.
+  mirror without a cable — **scan a QR code** (Android 11+ "Pair device with QR
+  code": the app shows a QR, discovers the phone via mDNS, then auto pairs +
+  connects), USB→Wi-Fi one-tap (`adb tcpip` + auto-connect), direct `IP:port`
+  connect, or pair by typing the 6-digit code, plus disconnect. Wi-Fi devices
+  then mirror/control exactly like USB ones.
 
 ## 0.4.7 — 2026-06-27
 

@@ -63,7 +63,7 @@ cp -R "$ROOT/assets" "$STAGE/assets"
 #    isolated cross-arch venv set up above).
 "${RUN[@]}" -m pip install --quiet --upgrade pip
 "${RUN[@]}" -m pip install --quiet --upgrade pyinstaller pyjwt cryptography paramiko \
-      ruamel.yaml pyyaml \
+      ruamel.yaml pyyaml segno \
       google-api-python-client google-auth google-auth-httplib2
 
 "${RUN[@]}" -m PyInstaller --clean --noconfirm --onefile --name serve \
@@ -80,6 +80,7 @@ cp -R "$ROOT/assets" "$STAGE/assets"
   --collect-submodules paramiko \
   --collect-all nacl \
   --collect-all ruamel.yaml \
+  --collect-submodules segno \
   --hidden-import yaml \
   --hidden-import jwt \
   --hidden-import paramiko \

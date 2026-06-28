@@ -364,6 +364,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try: self._json(200, android.adb_disconnect(self._json_body().get("addr")))
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
+        if route == "/api/adb/qr/start":
+            try: self._json(200, android.adb_qr_start())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/qr/poll":
+            try: self._json(200, android.adb_qr_poll())
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
         if route == "/api/emu/launch":
             try: self._json(200, android.emu_launch(self._json_body().get("name") or ""))
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})

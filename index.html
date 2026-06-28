@@ -2103,8 +2103,8 @@ window.__dragHint = function(show){
   }
 
   // ---- ANDROID (mirror + remote control via adb; scrcpy for native window) ----
-  let andLive=false, andSerial=null, andImg=null, andGen=0;
-  function stopAndroid(){ andLive=false; andGen++; andImg=null; }
+  let andLive=false, andSerial=null, andImg=null, andGen=0, andQrPoll=null;
+  function stopAndroid(){ andLive=false; andGen++; andImg=null; if(andQrPoll){ clearInterval(andQrPoll); andQrPoll=null; } }
   function renderAndroid(){
     titleEl.textContent='Android';
     body.innerHTML=`<div class="pp-and">
@@ -2157,14 +2157,18 @@ window.__dragHint = function(show){
     const scr=body.querySelector('#andScr'); if(!scr) return;
     scr.innerHTML='<div class="setup">'+
       '<div class="hd">Kết nối Android qua WiFi (adb không dây)</div>'+
-      '<div class="step"><b>Cách 1 — USB→WiFi (dễ nhất):</b> cắm cáp 1 lần, chọn thiết bị ở trên, rồi bấm — sau đó rút cáp.</div>'+
+      '<div class="step"><b>Cách 1 — Quét QR (Android 11+, dễ nhất):</b> Developer options → Wireless debugging → <b>Pair device with QR code</b> → quét mã bên dưới.</div>'+
+      '<div class="cmd"><button id="wfQr">📷 Hiện QR để quét</button><span id="wfQrSt" style="opacity:.75"></span></div>'+
+      '<div id="wfQrBox" style="text-align:center;margin:4px 0"></div>'+
+      '<div class="step"><b>Cách 2 — USB→WiFi:</b> cắm cáp 1 lần, chọn thiết bị ở trên, rồi bấm — sau đó rút cáp.</div>'+
       '<div class="cmd"><button id="wfTcp">⚡ Chuyển sang WiFi</button></div>'+
-      '<div class="step"><b>Cách 2 — nhập IP</b> (đã bật adb WiFi từ trước): IP:port</div>'+
+      '<div class="step"><b>Cách 3 — nhập IP</b> (đã bật adb WiFi từ trước): IP:port</div>'+
       '<div class="cmd"><input id="wfAddr" placeholder="192.168.1.50:5555" style="flex:1;min-width:140px"><button id="wfConnect">Connect</button></div>'+
-      '<div class="step"><b>Android 11+ — Wireless debugging "Ghép nối" (lần đầu):</b> IP:port + mã 6 số ở màn hình ghép nối</div>'+
+      '<div class="step"><b>Cách 4 — Ghép nối bằng mã</b> (nhập tay): IP:port + mã 6 số ở màn hình ghép nối</div>'+
       '<div class="cmd"><input id="wfPairAddr" placeholder="192.168.1.50:37125" style="flex:1;min-width:120px"><input id="wfCode" placeholder="mã" style="width:80px"><button id="wfPair">Pair</button></div>'+
       '<div class="cmd"><button id="wfDisc">Ngắt WiFi</button><button id="wfBack">← Quay lại mirror</button></div>'+
       '</div>';
+    scr.querySelector('#wfQr').onclick=wifiQrStart;
     scr.querySelector('#wfTcp').onclick=wifiTcpip;
     scr.querySelector('#wfConnect').onclick=()=>wifiConnect(scr.querySelector('#wfAddr').value);
     scr.querySelector('#wfPair').onclick=()=>wifiPair(scr.querySelector('#wfPairAddr').value, scr.querySelector('#wfCode').value);
@@ -2185,6 +2189,32 @@ window.__dragHint = function(show){
     try{ const d=await (await fetch('/api/adb/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({addr,code})})).json();
       setSt(d.ok?'<b>paired ✓</b> — giờ Connect bằng IP:port (mục Cách 2)':'⚠️ '+(d.error||'pair failed'));
     }catch(e){ setSt('⚠️ '+e); }
+  }
+  function setQrSt(s){ const el=body.querySelector('#wfQrSt'); if(el) el.innerHTML=s; }
+  async function wifiQrStart(){
+    if(andQrPoll){ clearInterval(andQrPoll); andQrPoll=null; }
+    setQrSt('⏳ tạo QR…');
+    try{ const d=await (await fetch('/api/adb/qr/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+      if(!d.ok){ setQrSt('⚠️ '+(d.error||'lỗi')); return; }
+      const box=body.querySelector('#wfQrBox');
+      if(box) box.innerHTML = d.svg
+        ? '<div style="display:inline-block;background:#fff;padding:8px;border-radius:10px">'+d.svg+'</div>'
+        : '<div class="step" style="color:#e0a">Thiếu thư viện QR (segno) — bản app đóng gói có sẵn. Tạm dùng Cách 2/3/4.</div>';
+      setQrSt(d.svg?'Quét QR bằng điện thoại…':'');
+      if(!d.svg) return;
+      andQrPoll=setInterval(wifiQrPoll,2000);   // poll mdns → pair → connect
+    }catch(e){ setQrSt('⚠️ '+e); }
+  }
+  async function wifiQrPoll(){
+    try{ const d=await (await fetch('/api/adb/qr/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+      if(d.waiting==='scan'){ setQrSt('Quét QR bằng điện thoại…'); return; }
+      if(d.waiting==='connect'||(d.paired&&!d.connected)){ setQrSt('✅ đã ghép nối — đang kết nối…'); return; }
+      if(!d.ok){ setQrSt('⚠️ '+(d.error||'pair lỗi')); if(andQrPoll){ clearInterval(andQrPoll); andQrPoll=null; } return; }
+      if(d.connected){ if(andQrPoll){ clearInterval(andQrPoll); andQrPoll=null; }
+        const box=body.querySelector('#wfQrBox'); if(box) box.innerHTML='';
+        setQrSt('<b>WiFi connected ✓</b> '+esc(d.addr||''));
+        setSt('<b>WiFi connected ✓</b>'); loadDevices(); }
+    }catch(e){ setQrSt('⚠️ '+e); }
   }
   async function wifiTcpip(){
     if(!andSerial){ setSt('⚠️ chọn thiết bị USB ở trên trước'); return; }

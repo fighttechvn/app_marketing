@@ -4,7 +4,7 @@ Localhost-only server, so shelling out to adb/scrcpy is acceptable (no LAN
 exposure). Gesture coordinates are device PIXELS — the frontend maps clicks via
 the screenshot's natural size.
 """
-import os, re, time, shutil, subprocess
+import os, re, time, shutil, secrets, subprocess
 from .util import find_bin, have, exe_path, run
 from . import config
 
@@ -282,6 +282,82 @@ def adb_tcpip(serial):
         return {"ok": True, "ip": "", "hint": "couldn't read the device Wi-Fi IP — "
                 "enter IP:5555 manually (Settings ▸ About ▸ Status)"}
     return {"ok": True, "ip": ip, "addr": ip + ":5555", "connect": adb_connect(ip + ":5555")}
+
+
+# ---- QR-code pairing (Android 11+ "Pair device with QR code") ----------------
+# Same scheme Android Studio uses: we render a QR encoding
+# `WIFI:T:ADB;S:<name>;P:<password>;;`. The phone (Developer options ▸ Wireless
+# debugging ▸ Pair with QR code) scans it and advertises an `_adb-tls-pairing._tcp`
+# mDNS service whose instance name == <name>; we discover it via `adb mdns
+# services`, run `adb pair <addr> <password>`, then connect to the device's
+# `_adb-tls-connect._tcp`. No typing an IP/code by hand.
+_QR = {"name": None, "password": None, "paired": False, "host": None}
+
+
+def _qr_svg(payload):
+    """Render the pairing payload as an inline SVG QR (segno — pure-python, bundled
+    with the sidecar). Returns '' if segno isn't installed (dev runs from source)."""
+    try:
+        import io, segno
+        buf = io.BytesIO()
+        segno.make(payload, error="m").save(buf, kind="svg", scale=6, border=2,
+                                            dark="#0a0a0a", light="#ffffff")
+        return buf.getvalue().decode("utf-8")
+    except Exception:
+        return ""
+
+
+def _mdns_services():
+    """Parse `adb mdns services` → [{name, type, addr}] for the _adb-tls-* services."""
+    out, _, _ = _adb(["mdns", "services"], timeout=8)
+    rows = []
+    for line in (out or "").splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[1].startswith("_adb-tls"):
+            rows.append({"name": parts[0], "type": parts[1], "addr": parts[2]})
+    return rows
+
+
+def adb_qr_start():
+    """Begin a QR pairing session: returns the QR (SVG) to display + the payload."""
+    if not have(adb_bin()):
+        return {"ok": False, "error": "adb not found (set it in Config / Paths)"}
+    name = "AppPreview-" + secrets.token_hex(3)
+    password = "%06d" % secrets.randbelow(1000000)
+    _QR.update(name=name, password=password, paired=False, host=None)
+    payload = "WIFI:T:ADB;S:%s;P:%s;;" % (name, password)
+    svg = _qr_svg(payload)
+    return {"ok": True, "payload": payload, "name": name, "svg": svg, "needSegno": not svg,
+            "hint": "Trên điện thoại: Developer options → Wireless debugging → "
+                    "Pair device with QR code → quét mã này."}
+
+
+def adb_qr_poll():
+    """Poll mDNS for the scanned pairing service → pair → connect. The frontend
+    calls this on a timer after showing the QR until it returns connected:true."""
+    if not _QR.get("name"):
+        return {"ok": False, "error": "no QR session — press the QR button again"}
+    svcs = _mdns_services()
+    if not _QR["paired"]:
+        pairing = next((s for s in svcs if "pairing" in s["type"] and s["name"] == _QR["name"]), None)
+        if not pairing:
+            return {"ok": True, "waiting": "scan"}        # phone hasn't scanned yet
+        out, err, _ = _adb(["pair", pairing["addr"], _QR["password"]], timeout=25)
+        msg = ((out or "") + (err or "")).strip()
+        if "successfully paired" not in msg.lower():
+            return {"ok": False, "error": msg[:200] or "pair failed"}
+        _QR["paired"] = True
+        _QR["host"] = pairing["addr"].rsplit(":", 1)[0]   # match the connect svc by host
+    # Paired → connect to the device's connect service (same host if we can tell).
+    conn = next((s for s in svcs if "connect" in s["type"]
+                 and (not _QR["host"] or s["addr"].startswith(_QR["host"] + ":"))), None)
+    if not conn:
+        return {"ok": True, "paired": True, "waiting": "connect"}   # adbd re-advertising
+    c = adb_connect(conn["addr"])
+    res = {"ok": bool(c.get("ok")), "paired": True, "connected": bool(c.get("ok")), "addr": conn.get("addr")}
+    if not c.get("ok"):
+        res["error"] = c.get("error")
+    return res
 
 
 # ---- Android emulator (AVD) management -------------------------------------

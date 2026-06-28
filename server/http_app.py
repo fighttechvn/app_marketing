@@ -346,6 +346,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try: self._json(200, android.adb_scrcpy(self._json_body().get("serial") or None))
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
             return
+        if route == "/api/adb/connect":
+            try: self._json(200, android.adb_connect(self._json_body().get("addr")))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/pair":
+            try:
+                b = self._json_body()
+                self._json(200, android.adb_pair(b.get("addr"), b.get("code")))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/tcpip":
+            try: self._json(200, android.adb_tcpip(self._json_body().get("serial") or None))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
+        if route == "/api/adb/disconnect":
+            try: self._json(200, android.adb_disconnect(self._json_body().get("addr")))
+            except Exception as e: self._json(500, {"ok": False, "error": str(e)})
+            return
         if route == "/api/emu/launch":
             try: self._json(200, android.emu_launch(self._json_body().get("name") or ""))
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})

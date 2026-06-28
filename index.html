@@ -2111,6 +2111,7 @@ window.__dragHint = function(show){
       <div class="tools">
         <select id="andDev"><option>scanning…</option></select>
         <button id="andRefresh" title="Rescan devices">⟳</button>
+        <button id="andWifi" title="Kết nối thiết bị qua WiFi (adb không dây)">📶 WiFi</button>
         <button id="andLiveBtn" title="Toggle live mirror">▶ Live</button>
         <button id="andShot" title="Chụp màn hình → hiện khung ảnh để kéo vào slot listing (tự ẩn sau 5s)">📸</button>
         <button id="andInstall" title="Cài APK lên thiết bị — hoặc kéo thẳng file .apk vào khung bên dưới">📦 APK</button>
@@ -2135,6 +2136,7 @@ window.__dragHint = function(show){
         <button data-key="backspace" title="Backspace">⌫</button>
       </div></div>`;
     body.querySelector('#andRefresh').onclick=()=>{ loadDevices(); loadAvds(); };
+    body.querySelector('#andWifi').onclick=paintWifi;
     body.querySelector('#andLiveBtn').onclick=toggleLive;
     body.querySelector('#andShot').onclick=captureAndroid;
     body.querySelector('#andInstall').onclick=async()=>{ const f=await pickFile('.apk,.apks'); if(f) installAndroid({file:f}); };
@@ -2149,6 +2151,51 @@ window.__dragHint = function(show){
     loadDevices(); loadAvds();
   }
   function setSt(s){ const el=body.querySelector('#andSt'); if(el) el.innerHTML=s; }
+  // ----- Android Wi-Fi (wireless adb) -----
+  function paintWifi(){
+    stopAndroid();                                  // pause the live poll while on this form
+    const scr=body.querySelector('#andScr'); if(!scr) return;
+    scr.innerHTML='<div class="setup">'+
+      '<div class="hd">Kết nối Android qua WiFi (adb không dây)</div>'+
+      '<div class="step"><b>Cách 1 — USB→WiFi (dễ nhất):</b> cắm cáp 1 lần, chọn thiết bị ở trên, rồi bấm — sau đó rút cáp.</div>'+
+      '<div class="cmd"><button id="wfTcp">⚡ Chuyển sang WiFi</button></div>'+
+      '<div class="step"><b>Cách 2 — nhập IP</b> (đã bật adb WiFi từ trước): IP:port</div>'+
+      '<div class="cmd"><input id="wfAddr" placeholder="192.168.1.50:5555" style="flex:1;min-width:140px"><button id="wfConnect">Connect</button></div>'+
+      '<div class="step"><b>Android 11+ — Wireless debugging "Ghép nối" (lần đầu):</b> IP:port + mã 6 số ở màn hình ghép nối</div>'+
+      '<div class="cmd"><input id="wfPairAddr" placeholder="192.168.1.50:37125" style="flex:1;min-width:120px"><input id="wfCode" placeholder="mã" style="width:80px"><button id="wfPair">Pair</button></div>'+
+      '<div class="cmd"><button id="wfDisc">Ngắt WiFi</button><button id="wfBack">← Quay lại mirror</button></div>'+
+      '</div>';
+    scr.querySelector('#wfTcp').onclick=wifiTcpip;
+    scr.querySelector('#wfConnect').onclick=()=>wifiConnect(scr.querySelector('#wfAddr').value);
+    scr.querySelector('#wfPair').onclick=()=>wifiPair(scr.querySelector('#wfPairAddr').value, scr.querySelector('#wfCode').value);
+    scr.querySelector('#wfDisc').onclick=async()=>{ try{ await fetch('/api/adb/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); setSt('đã ngắt WiFi'); }catch(e){ setSt('⚠️ '+e); } loadDevices(); };
+    scr.querySelector('#wfBack').onclick=()=>loadDevices();
+  }
+  async function wifiConnect(addr){
+    addr=(addr||'').trim(); if(!addr){ setSt('⚠️ nhập IP:port'); return; }
+    setSt('⏳ connecting '+esc(addr)+'…');
+    try{ const d=await (await fetch('/api/adb/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({addr})})).json();
+      if(!d.ok){ setSt('⚠️ '+(d.error||'connect failed')); return; }
+      setSt('<b>WiFi connected ✓</b>'); loadDevices();
+    }catch(e){ setSt('⚠️ '+e); }
+  }
+  async function wifiPair(addr, code){
+    if(!(addr||'').trim()||!(code||'').trim()){ setSt('⚠️ nhập địa chỉ ghép nối + mã'); return; }
+    setSt('⏳ pairing…');
+    try{ const d=await (await fetch('/api/adb/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({addr,code})})).json();
+      setSt(d.ok?'<b>paired ✓</b> — giờ Connect bằng IP:port (mục Cách 2)':'⚠️ '+(d.error||'pair failed'));
+    }catch(e){ setSt('⚠️ '+e); }
+  }
+  async function wifiTcpip(){
+    if(!andSerial){ setSt('⚠️ chọn thiết bị USB ở trên trước'); return; }
+    setSt('⏳ chuyển sang WiFi…');
+    try{ const d=await (await fetch('/api/adb/tcpip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serial:andSerial})})).json();
+      if(!d.ok){ setSt('⚠️ '+(d.error||'tcpip failed')); return; }
+      if(d.connect&&d.connect.ok){ setSt('<b>WiFi connected ✓</b> '+esc(d.addr)+' — rút cáp được rồi'); loadDevices(); return; }
+      const a=body.querySelector('#wfAddr'); if(a&&d.ip) a.value=d.ip+':5555';
+      setSt(d.ip?('đã bật WiFi tại '+esc(d.ip)+':5555 — bấm Connect'):('⚠️ '+(d.hint||'không đọc được IP')));
+    }catch(e){ setSt('⚠️ '+e); }
+  }
   // ----- Android emulator (AVD) launcher -----
   async function loadAvds(){
     const sel=body.querySelector('#andAvd'); if(!sel) return;

@@ -130,6 +130,13 @@ build_windows() {
   # found"). Copying all of bin/ is the bulletproof "widen the gather": every
   # installed dependency is present. (Cost: a few dozen extra MB of DLLs.)
   cp -n "$PREFIX"/bin/*.dll "$GST/bin/" 2>/dev/null || true
+  # Drop the GStreamer Vulkan integration. The mirror renders via the MJPEG
+  # tcpserversink, never Vulkan — but copying all of bin/ pulls in
+  # libgstvulkan-1.0-0.dll, which LOAD-TIME imports Vulkan 1.3 entry points
+  # (e.g. vkCmdPipelineBarrier2) that an older system vulkan-1.dll doesn't export.
+  # Windows then pops a BLOCKING "Entry Point Not Found" dialog the instant uxplay
+  # loads GStreamer. Removing the plugin + its helper is safe and silences it.
+  rm -f "$GST"/lib/gstreamer-1.0/libgstvulkan.dll "$GST"/bin/libgstvulkan-1.0-0.dll
   echo "✓ Windows tools bundled → $TOOLS ($(ls "$GST/bin"/*.dll 2>/dev/null | wc -l) DLLs)"
 }
 

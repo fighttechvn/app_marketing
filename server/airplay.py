@@ -100,6 +100,27 @@ def _running():
     return bool(p and p.poll() is None)
 
 
+def _default_name():
+    """Receiver name shown in the iPhone's Screen Mirroring list. Includes this
+    machine's hostname so several computers running AppPreview are distinguishable
+    (otherwise they'd all advertise the same 'AppPreview')."""
+    try:
+        host = socket.gethostname().split(".")[0].strip()
+    except Exception:
+        host = ""
+    # ASCII separator only: UxPlay rejects a non-ASCII/non-UTF-8 receiver name
+    # ("detected a non-ascii … string"), and on Windows a Unicode arg like "·"
+    # reaches uxplay as a non-UTF-8 byte. Keep the name plain ASCII.
+    return _ascii_name("AppPreview - " + host) if host else "AppPreview"
+
+
+def _ascii_name(s):
+    """UxPlay only accepts ASCII receiver names. Drop non-ASCII chars (e.g. a
+    hostname or user-typed name with diacritics) so `-n` never crashes uxplay."""
+    out = (s or "").encode("ascii", "ignore").decode("ascii").strip()
+    return out or "AppPreview"
+
+
 def _local_ips():
     """This machine's LAN IPs, shown in the connect hint (which receiver to pick)."""
     ips = []
@@ -165,6 +186,7 @@ def airplay_status():
             "running": running,
             "connected": running and _connected(lines),
             "name": _UX["name"] or "",
+            "defaultName": _default_name(),
             "port": _UX.get("port"),
             "ips": _local_ips(),
             "uxplay": uxplay_bin(),
@@ -189,7 +211,7 @@ def airplay_start(opts=None):
                         "gst-plugins-base gst-plugins-good gst-plugins-bad)."}
     if _running():
         return {"ok": True, "running": True, "name": _UX["name"], "already": True}
-    name = (opts.get("name") or "AppPreview").strip() or "AppPreview"
+    name = _ascii_name((opts.get("name") or _default_name()).strip() or _default_name())
     audio = opts.get("audio", True)
     port = _free_port()
     cmd = [uxplay_bin(), "-n", name, "-nh", "-fps", "30",

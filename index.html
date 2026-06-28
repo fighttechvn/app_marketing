@@ -2535,7 +2535,7 @@ window.__dragHint = function(show){
   // panel. AirPlay is one-way → no tap/swipe (use the 🍎 WDA tab for control).
   // stopAirplay() stops the UI poll + img stream but leaves the receiver running so
   // the mirror survives closing the panel; use ⏹ Stop to actually kill it.
-  let airplayPoll=null, airplayStreaming=false;
+  let airplayPoll=null, airplayStreaming=false, apNameTouched=false;
   function stopAirplay(){
     if(airplayPoll){ clearInterval(airplayPoll); airplayPoll=null; }
     const im=body.querySelector('#apImg'); if(im){ im.onerror=null; im.src=''; }
@@ -2545,7 +2545,7 @@ window.__dragHint = function(show){
     titleEl.textContent='AirPlay';
     body.innerHTML=`<div class="pp-and">
       <div class="tools">
-        <input id="apName" value="AppPreview" title="Tên receiver hiện trong Screen Mirroring trên iPhone" style="width:110px">
+        <input id="apName" value="AppPreview" title="Tên receiver hiện trong Screen Mirroring trên iPhone (mặc định kèm tên máy để phân biệt nhiều máy tính)" style="width:170px">
         <button id="apStart" title="Bật AirPlay receiver — video hiện ngay trong panel này">▶ Start</button>
         <button id="apStop" title="Tắt receiver">⏹ Stop</button>
         <label style="font-size:12px;color:#bbb;display:inline-flex;align-items:center;gap:3px" title="Bật/tắt âm thanh"><input type="checkbox" id="apAudio" checked> 🔊</label>
@@ -2559,6 +2559,8 @@ window.__dragHint = function(show){
     body.querySelector('#apStop').onclick=airplayStop;
     body.querySelector('#apPop').onclick=openAirplayWindow;
     body.querySelector('#apShot').onclick=captureAirplay;
+    apNameTouched=false;   // fresh panel → adopt the server's hostname-tagged default
+    body.querySelector('#apName').addEventListener('input',()=>{ apNameTouched=true; });
     airplayRefresh();
     airplayPoll=setInterval(airplayRefresh,2500);   // live connection state while tab is open
   }
@@ -2580,6 +2582,10 @@ window.__dragHint = function(show){
   }
   function paintAirplay(d){
     const scr=body.querySelector('#apScr'); if(!scr) return;
+    // Adopt the server's hostname-tagged default name (e.g. "AppPreview · PC-01")
+    // until the user edits the field, so multiple machines are distinguishable.
+    const inp=body.querySelector('#apName');
+    if(inp && !apNameTouched && d && d.defaultName && (inp.value==='' || inp.value==='AppPreview')) inp.value=d.defaultName;
     if(!d||!d.available){
       airplayStreaming=false;
       setApSt('⚠️ UxPlay chưa cài');

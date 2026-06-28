@@ -197,6 +197,31 @@ jobs:
           PYTHON: python
         run: bash scripts/build-sidecar.sh
 
+      # Bundle UxPlay + GStreamer (AirPlay mirror) into src-tauri/tools/ via MSYS2.
+      # Non-fatal: on failure the app ships without it and AirPlay falls back to a
+      # system UxPlay/GStreamer install.
+      - name: Setup MSYS2 (UCRT64) for UxPlay + GStreamer
+        uses: msys2/setup-msys2@v2
+        continue-on-error: true
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gstreamer
+            mingw-w64-ucrt-x86_64-gst-plugins-base
+            mingw-w64-ucrt-x86_64-gst-plugins-good
+            mingw-w64-ucrt-x86_64-gst-plugins-bad
+            mingw-w64-ucrt-x86_64-libplist
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-openssl
+            git
+
+      - name: Bundle UxPlay + GStreamer (AirPlay)
+        continue-on-error: true
+        shell: msys2 {0}
+        run: cd desktop && bash scripts/build-uxplay-gstreamer.sh windows
+
       - name: Build Windows installer (.exe NSIS)
         working-directory: desktop
         # Updater signing (signs the NSIS bundle → .sig for auto-update). Unsigned

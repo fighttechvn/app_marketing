@@ -4,6 +4,30 @@ All notable changes to the **App Preview** macOS desktop app. Releases are tagge
 `desktop-v<version>` and published to
 [GitHub Releases](https://github.com/fighttechvn/app_marketing/releases).
 
+## 0.5.0 — 2026-06-28
+
+**AirPlay iPhone-Mirror — wireless, cross-platform (macOS + Windows).**
+
+### Added
+- **AirPlay mirror tab (📡).** Mirror an iPhone/iPad over AirPlay using a bundled
+  **UxPlay + GStreamer** receiver — no cable, no Xcode/WebDriverAgent. Works on
+  **macOS and Windows** (the existing 🍎 WebDriverAgent tab needs Xcode → macOS
+  only). Start the receiver, then on the iPhone pick it from Control Center ▸
+  Screen Mirroring; **the live video streams right inside the panel** (UxPlay
+  re-encodes the mirror to MJPEG on a local port, embedded as an `<img>` — no
+  separate window).
+  - Controls: receiver name, ▶ Start / ⏹ Stop, Audio toggle, **⤢ separate-window**
+    pop-out (opens the live mirror big in its own window), live "connected" status,
+    and a connection hint with the machine's LAN IPs.
+  - 📸 **Capture** grabs the current frame straight from the stream into the
+    listing workflow.
+  - **Note:** AirPlay is one-way (view + screenshot only — no tap/swipe). For
+    remote control use the 🍎 WebDriverAgent tab.
+- **Bundled UxPlay + GStreamer.** The .dmg/.exe ship a relocatable receiver under
+  `Resources/tools` so AirPlay works out of the box. If absent, the app falls back
+  to a system install (`brew install uxplay` / MSYS2). New `uxplay` entry in the
+  Config ▸ Paths dialog to point at a specific binary.
+
 ## 0.4.7 — 2026-06-27
 
 **Install builds by drag-and-drop, capture screenshots, and a persistent config.**

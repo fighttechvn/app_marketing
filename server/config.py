@@ -195,7 +195,7 @@ def delete_runner(rid):
 # whole app config lives in one place. The device modules (android/ios) read an
 # override via get(); blank means "auto-detect on PATH/SDK".
 _K_PATHS = "paths"
-PATH_KEYS = ("adb", "aapt", "scrcpy", "emulator", "iproxy", "go_ios", "wda_project", "screenshot_dir")
+PATH_KEYS = ("adb", "aapt", "scrcpy", "emulator", "iproxy", "go_ios", "wda_project", "uxplay", "screenshot_dir")
 
 
 def _paths_doc():
@@ -243,7 +243,7 @@ def screenshot_dir():
 def paths_dump():
     """Everything the Config / Paths dialog needs: each tool's resolved path +
     found-state + current override, plus the screenshot dir and config path."""
-    from . import android, ios   # lazy to avoid an import cycle
+    from . import android, ios, airplay   # lazy to avoid an import cycle
     from .util import have
     cfg = _paths_doc()
 
@@ -266,6 +266,8 @@ def paths_dump():
             "Cài .ipa lên iPhone thật (ios install)"),
         row("wda_project", "WebDriverAgent.xcodeproj", ios.wda_project_path(),
             "Build WDA để điều khiển iOS"),
+        row("uxplay", "UxPlay (AirPlay receiver)", airplay.uxplay_bin(),
+            "Mirror iPhone không dây qua AirPlay (cần GStreamer)"),
     ]
     return {"ok": True, "configPath": CONFIG_PATH, "screenshotDir": screenshot_dir(),
             "config": _plain(cfg), "tools": tools}

@@ -649,6 +649,7 @@
        here), so they're not shown as always-on rail buttons. Device mirrors stay. -->
   <button class="rb" data-pp="android" title="Android — mirror &amp; remote-control a device (adb / scrcpy)">📱</button>
   <button class="rb" data-pp="iphone" title="iPhone — mirror &amp; control a real device (WebDriverAgent)">🍎</button>
+  <button class="rb" data-pp="airplay" title="AirPlay — mirror iPhone không dây qua UxPlay (macOS + Windows, chỉ xem)">📡</button>
   <button class="rb" data-pp="logs" title="Logs — live logcat / syslog stream from the selected device, emulator or simulator">📜</button>
   <div class="sp"></div>
   <button class="rb" id="ppClose2" title="Hide panel">✕</button>
@@ -1890,17 +1891,17 @@ window.__dragHint = function(show){
 
   const setActive=t=>rail.querySelectorAll('.rb[data-pp]').forEach(b=>b.classList.toggle('active',b.dataset.pp===t));
   const openPanel=()=>{ panel.classList.add('open'); document.body.classList.add('pp-open'); };
-  function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('pp-open'); setActive(null); stopAndroid(); stopIos(); stopLogs(); cur=null; }
+  function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('pp-open'); setActive(null); stopAndroid(); stopIos(); stopAirplay(); stopLogs(); cur=null; }
   function revoke(){ if(objUrl){ URL.revokeObjectURL(objUrl); objUrl=null; } }
 
   // open a tab without the toggle-closed behaviour (used by link clicks)
   function openTab(tab){
-    stopAndroid(); stopIos(); stopLogs(); revoke();
+    stopAndroid(); stopIos(); stopAirplay(); stopLogs(); revoke();
     const bottom=(tab==='logs');               // Logs docks full-width at the bottom
     panel.classList.toggle('pp-bottom',bottom);
     if(bottom) panel.style.width=''; else panel.style.height='';   // drop the other mode's inline size
     cur=tab; setActive(tab); openPanel();
-    ({web:renderWeb, media:renderMedia, md:renderMd, android:renderAndroid, iphone:renderIphone, logs:renderLogs}[tab])();
+    ({web:renderWeb, media:renderMedia, md:renderMd, android:renderAndroid, iphone:renderIphone, airplay:renderAirplay, logs:renderLogs}[tab])();
   }
   function show(tab){
     if(cur===tab){ closePanel(); return; }   // clicking the active rail icon toggles closed
@@ -2479,6 +2480,111 @@ window.__dragHint = function(show){
       if(!d.ok){ setIosSt('⚠️ '+(d.error||'capture failed')); return; }
       setIosSt('<b>saved ✓</b> '+esc(d.file)); showShotCard(d.path,d.file);
     }catch(e){ setIosSt('⚠️ '+e); }
+  }
+
+  // ---- AIRPLAY — wireless iPhone mirror via UxPlay (macOS + Windows) ----
+  // UxPlay can't be embedded directly (no per-frame API), so it re-encodes the
+  // mirror to MJPEG on a local port; we stream that into an <img> right here in the
+  // panel. AirPlay is one-way → no tap/swipe (use the 🍎 WDA tab for control).
+  // stopAirplay() stops the UI poll + img stream but leaves the receiver running so
+  // the mirror survives closing the panel; use ⏹ Stop to actually kill it.
+  let airplayPoll=null, airplayStreaming=false;
+  function stopAirplay(){
+    if(airplayPoll){ clearInterval(airplayPoll); airplayPoll=null; }
+    const im=body.querySelector('#apImg'); if(im){ im.onerror=null; im.src=''; }
+    airplayStreaming=false;
+  }
+  function renderAirplay(){
+    titleEl.textContent='AirPlay';
+    body.innerHTML=`<div class="pp-and">
+      <div class="tools">
+        <input id="apName" value="AppPreview" title="Tên receiver hiện trong Screen Mirroring trên iPhone" style="width:110px">
+        <button id="apStart" title="Bật AirPlay receiver — video hiện ngay trong panel này">▶ Start</button>
+        <button id="apStop" title="Tắt receiver">⏹ Stop</button>
+        <label style="font-size:12px;color:#bbb;display:inline-flex;align-items:center;gap:3px" title="Bật/tắt âm thanh"><input type="checkbox" id="apAudio" checked> 🔊</label>
+        <button id="apPop" title="Mở mirror ở cửa sổ riêng (xem to)">⤢ Cửa sổ</button>
+        <button id="apShot" title="Chụp khung hình hiện tại → kéo vào slot listing">📸</button>
+        <span class="st" id="apSt"></span>
+      </div>
+      <div class="scr" id="apScr"><div class="nodev">scanning…</div></div>
+      </div>`;
+    body.querySelector('#apStart').onclick=airplayStart;
+    body.querySelector('#apStop').onclick=airplayStop;
+    body.querySelector('#apPop').onclick=openAirplayWindow;
+    body.querySelector('#apShot').onclick=captureAirplay;
+    airplayRefresh();
+    airplayPoll=setInterval(airplayRefresh,2500);   // live connection state while tab is open
+  }
+  function setApSt(s){ const el=body.querySelector('#apSt'); if(el) el.innerHTML=s; }
+  async function airplayRefresh(){
+    try{ paintAirplay(await (await fetch('/api/airplay/status')).json()); }
+    catch(e){ setApSt('⚠️ '+e); }
+  }
+  // Embed the MJPEG mirror once the receiver is up; keep the same <img> across polls
+  // so we don't restart the stream every 2.5s.
+  function ensureAirplayStream(){
+    const scr=body.querySelector('#apScr'); if(!scr) return;
+    if(airplayStreaming && scr.querySelector('#apImg')) return;
+    scr.innerHTML='<img id="apImg" alt="" style="width:100%;height:100%;object-fit:contain;background:#000">';
+    const im=scr.querySelector('#apImg');
+    im.onerror=()=>{ airplayStreaming=false; };
+    im.src='/api/airplay/mjpeg?t='+Date.now();
+    airplayStreaming=true;
+  }
+  function paintAirplay(d){
+    const scr=body.querySelector('#apScr'); if(!scr) return;
+    if(!d||!d.available){
+      airplayStreaming=false;
+      setApSt('⚠️ UxPlay chưa cài');
+      scr.innerHTML='<div class="setup">'+
+        '<div class="hd">Cần UxPlay + GStreamer cho AirPlay</div>'+
+        '<div class="step">Bản app đóng gói sẵn UxPlay — nếu thấy thông báo này nghĩa là đang chạy từ source.</div>'+
+        '<div class="step">macOS — cài GStreamer + build UxPlay (UxPlay không có trên Homebrew):</div>'+
+        cmdRow('brew install cmake openssl@3 libplist gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad')+
+        cmdRow('bash desktop/scripts/build-uxplay-gstreamer.sh macos')+
+        '<div class="foot">Hoặc build thủ công từ github.com/FDH2/UxPlay rồi trỏ đường dẫn trong Config ▸ Paths. Windows: dùng bản app đóng gói sẵn. Xong bấm ▶ Start.</div></div>';
+      wireCmdCopy(scr); return;
+    }
+    if(d.running){
+      setApSt(d.connected?'<b>connected ●</b>':'<b>listening…</b> — chọn '+esc(d.name||'AppPreview')+' trên iPhone');
+      ensureAirplayStream();   // video streams into #apImg (black until iPhone connects)
+    } else {
+      airplayStreaming=false;
+      setApSt('ready');
+      scr.innerHTML='<div class="nodev">Bấm ▶ Start để bật AirPlay receiver,<br>rồi chọn nó trong Screen Mirroring trên iPhone — <b>video hiện ngay tại đây</b>.<br>'+
+        '<span style="opacity:.6">Mirror không dây — không cần cáp / Xcode. macOS &amp; Windows. (Chỉ xem, không tap/swipe.)</span></div>';
+    }
+  }
+  async function airplayStart(){
+    const name=(body.querySelector('#apName')?.value||'AppPreview').trim()||'AppPreview';
+    const audio=!!body.querySelector('#apAudio')?.checked;
+    setApSt('⏳ starting…');
+    try{ const d=await (await fetch('/api/airplay/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,audio})})).json();
+      if(!d.ok){ setApSt('⚠️ '+(d.error||'failed'));
+        if(d.hint){ const scr=body.querySelector('#apScr'); if(scr) scr.innerHTML='<div class="nodev">'+esc((d.hint||'')+(d.detail?'\n'+d.detail:'')).replace(/\n/g,'<br>')+'</div>'; }
+        return; }
+      airplayStreaming=false; airplayRefresh();
+    }catch(e){ setApSt('⚠️ '+e); }
+  }
+  async function airplayStop(){
+    setApSt('⏳ stopping…');
+    const im=body.querySelector('#apImg'); if(im) im.src='';   // drop the stream before killing
+    airplayStreaming=false;
+    try{ await fetch('/api/airplay/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); airplayRefresh(); }
+    catch(e){ setApSt('⚠️ '+e); }
+  }
+  function openAirplayWindow(){
+    // Pop the live mirror into its own window (reuses the running MJPEG stream — no
+    // UxPlay restart). In the desktop app this opens via the OS browser; in a tab a popup.
+    const w=window.open('/api/airplay/view','airplayMirror','width=440,height=900');
+    if(!w) setApSt('⚠️ trình duyệt chặn popup — cho phép rồi thử lại');
+  }
+  async function captureAirplay(){
+    setApSt('📸 capturing…');
+    try{ const d=await (await fetch('/api/airplay/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+      if(!d.ok){ setApSt('⚠️ '+(d.error||'capture failed')); return; }
+      setApSt('<b>saved ✓</b> '+esc(d.file)); showShotCard(d.path,d.file);
+    }catch(e){ setApSt('⚠️ '+e); }
   }
 
   // ---- LOGS — live logcat / syslog / simctl stream from the selected target ----

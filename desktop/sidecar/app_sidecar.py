@@ -49,6 +49,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", default="0")
     ap.add_argument("--data-dir", required=True)
+    # Bundled native tools (UxPlay + GStreamer for the AirPlay mirror). The Tauri
+    # shell passes its resource path; absent when run from source (→ system tools).
+    ap.add_argument("--tools-dir", default="")
     args = ap.parse_args()
 
     res = resource_root()
@@ -58,6 +61,9 @@ def main():
     # serve.py reads these at import time.
     os.environ["SP_ROOT"] = data
     os.environ["PORT"] = str(args.port)
+    tools = os.path.expanduser(args.tools_dir or "")
+    if tools and os.path.isdir(tools):
+        os.environ["SP_TOOLS_DIR"] = tools     # server/airplay.py resolves uxplay + GStreamer here
 
     sys.path.insert(0, res)          # serve.py sits beside us in the bundle
     import serve

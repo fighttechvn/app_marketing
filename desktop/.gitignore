@@ -4,6 +4,10 @@ src-tauri/target/
 src-tauri/gen/
 # generated sidecar binary (built by scripts/build-sidecar.sh)
 src-tauri/binaries/
+# bundled UxPlay + GStreamer (populated by scripts/build-uxplay-gstreamer.sh) —
+# keep only the README that documents the layout
+src-tauri/tools/*
+!src-tauri/tools/README.md
 # PyInstaller + staging
 .sidecar-build/
 .pyi-dist/

@@ -8,6 +8,8 @@ src-tauri/binaries/
 # keep only the README that documents the layout
 src-tauri/tools/*
 !src-tauri/tools/README.md
+# UxPlay source clone (build_windows/build_macos clone + build it here)
+.uxplay-src/
 # PyInstaller + staging
 .sidecar-build/
 .pyi-dist/

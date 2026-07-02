@@ -2612,10 +2612,11 @@ window.__dragHint = function(show){
   }
   function paintAirplay(d){
     const scr=body.querySelector('#apScr'); if(!scr) return;
-    // Adopt the server's hostname-tagged default name (e.g. "AppPreview · PC-01")
+    // Adopt the server's hostname-tagged default name (e.g. "AppPreview - PC-01")
     // until the user edits the field, so multiple machines are distinguishable.
     const inp=body.querySelector('#apName');
     if(inp && !apNameTouched && d && d.defaultName && (inp.value==='' || inp.value==='AppPreview')) inp.value=d.defaultName;
+    const logHtml=(d&&d.log&&d.log.length)?'<div class="foot" style="opacity:.55;white-space:pre-wrap;font-family:monospace;font-size:11px;margin-top:8px">'+esc(d.log.join('\n'))+'</div>':'';
     if(!d||!d.available){
       airplayStreaming=false;
       setApSt('⚠️ UxPlay chưa cài');
@@ -2629,13 +2630,23 @@ window.__dragHint = function(show){
       wireCmdCopy(scr); return;
     }
     if(d.running){
-      setApSt(d.connected?'<b>connected ●</b>':'<b>listening…</b> — chọn '+esc(d.name||'AppPreview')+' trên iPhone');
+      if(d.connected){
+        setApSt('<b>connected ●</b>');
+      } else {
+        // Not connected yet: tell the user the LAN the iPhone must share (mDNS
+        // discovery only works on the same subnet), and warn about extra adapters
+        // (WSL/Hyper-V/VPN) that can stop uxplay's mdnsd advertising correctly.
+        let hint='<b>listening…</b> — chọn '+esc(d.name||'AppPreview')+' trên iPhone';
+        if(d.primaryIp) hint+='<br><span style="opacity:.7">iPhone phải cùng Wi-Fi/mạng với máy này ('+esc(d.primaryIp)+').</span>';
+        if(d.multiNet) hint+='<br><span style="opacity:.7;color:#c88">⚠️ Máy có nhiều card mạng — nếu iPhone không thấy/không kết nối được, tắt adapter ảo (WSL/Hyper-V/VPN).</span>';
+        setApSt(hint);
+      }
       ensureAirplayStream();   // video streams into #apImg (black until iPhone connects)
     } else {
       airplayStreaming=false;
       setApSt('ready');
       scr.innerHTML='<div class="nodev">Bấm ▶ Start để bật AirPlay receiver,<br>rồi chọn nó trong Screen Mirroring trên iPhone — <b>video hiện ngay tại đây</b>.<br>'+
-        '<span style="opacity:.6">Mirror không dây — không cần cáp / Xcode. macOS &amp; Windows. (Chỉ xem, không tap/swipe.)</span></div>';
+        '<span style="opacity:.6">Mirror không dây — không cần cáp / Xcode. macOS &amp; Windows. (Chỉ xem, không tap/swipe.)</span>'+logHtml+'</div>';
     }
   }
   async function airplayStart(){

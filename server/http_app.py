@@ -4,9 +4,15 @@ Binds localhost only — /api/env and /api/sync expose store credentials, and th
 adb/WDA/preview endpoints shell out / read local files, so this must never be
 served on 0.0.0.0 / the LAN.
 """
-import os, sys, json, tempfile, http.server, urllib.parse, socket, getpass
+import os, sys, json, signal, tempfile, http.server, urllib.parse, socket, getpass
 from . import context
 from . import stores, project, android, ios, airplay, preview, logs, remote, config
+
+# Only these Host values may reach /api/*. The server binds 127.0.0.1, but a
+# browser tricked by DNS-rebinding would still send the attacker's hostname in
+# the Host header — rejecting non-loopback hosts closes that hole for the
+# credential/shell-out endpoints.
+_ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
 
 def host_info():
@@ -192,8 +198,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try: proc.terminate()
             except Exception: pass
 
+    def _host_ok(self):
+        """Reject /api/* requests whose Host header isn't loopback (DNS-rebinding
+        guard). Static assets are harmless, so this only gates the API surface."""
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip().lower()
+        if host in _ALLOWED_HOSTS or host == "":
+            return True
+        self._json(403, {"ok": False, "error": "forbidden host"})
+        return False
+
     def do_GET(self):
         route = self.path.split("?")[0]
+        if route.startswith("/api/") and not self._host_ok():
+            return
         if route == "/api/sync":
             try: self._json(200, stores.sync())
             except Exception as e: self._json(500, {"ok": False, "error": str(e)})
@@ -294,6 +311,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         route = self.path.split("?")[0]
+        if route.startswith("/api/") and not self._host_ok():
+            return
         if route == "/api/config":
             # Save the app-managed slice into ~/.apppreview (preserves other keys).
             # Body: {runners?, activeId?, settings?} — only present keys are written.
@@ -481,6 +500,17 @@ def run():
             stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError):
             pass
+    # Exit cleanly on a termination signal so atexit handlers run — otherwise the
+    # UxPlay receiver / scrcpy / emulator children we spawned are orphaned when the
+    # desktop shell stops the sidecar. `raise SystemExit` unwinds → atexit fires.
+    def _bye(*_):
+        raise SystemExit(0)
+    for sig in ("SIGTERM", "SIGINT", "SIGBREAK"):
+        s = getattr(signal, sig, None)
+        if s is not None:
+            try: signal.signal(s, _bye)
+            except (ValueError, OSError): pass
+
     # PORT=0 lets the OS pick a free port (used by the desktop sidecar, which reads
     # the actual port from stdout).
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", context.PORT), Handler)

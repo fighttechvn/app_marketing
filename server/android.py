@@ -4,7 +4,7 @@ Localhost-only server, so shelling out to adb/scrcpy is acceptable (no LAN
 exposure). Gesture coordinates are device PIXELS — the frontend maps clicks via
 the screenshot's natural size.
 """
-import os, re, time, shutil, secrets, subprocess
+import os, re, time, shutil, secrets, subprocess, atexit, threading, zipfile, tempfile
 from .util import find_bin, have, exe_path, run
 from . import config
 
@@ -121,6 +121,29 @@ def adb_screen(serial=None):
     return out
 
 
+def _extract_apks(path):
+    """A `.apks` (bundletool output) is a ZIP, NOT something adb can install
+    directly. Extract the installable APK(s): a universal build ships one
+    `universal.apk` (→ plain `install`); a split build ships `splits/*.apk` (→
+    `install-multiple`). Returns (tmp_dir, [apk_paths]); tmp_dir is None if the
+    archive holds no APKs (caller cleans up tmp_dir)."""
+    tmp = tempfile.mkdtemp(prefix="sp-apks-")
+    try:
+        with zipfile.ZipFile(path) as z:
+            names = [n for n in z.namelist() if n.lower().endswith(".apk")]
+            uni = [n for n in names if os.path.basename(n).lower() == "universal.apk"]
+            picks = uni or names
+            apks = []
+            for n in picks:
+                dst = os.path.join(tmp, os.path.basename(n))
+                with z.open(n) as src, open(dst, "wb") as out:
+                    shutil.copyfileobj(src, out)
+                apks.append(dst)
+    except (zipfile.BadZipFile, OSError):
+        return tmp, []
+    return tmp, apks
+
+
 def adb_install(serial, path):
     """Install (or reinstall, keeping data) an APK onto the device — the target
     of dragging a build onto the Android frame. `path` is a local .apk/.apks the
@@ -129,14 +152,32 @@ def adb_install(serial, path):
         return {"ok": False, "error": "adb not found (set it in Config / Paths)"}
     if not path or not os.path.isfile(path):
         return {"ok": False, "error": "APK not found: %s" % path}
-    args = ["install-multiple", "-r"] if path.lower().endswith(".apks") else ["install", "-r"]
-    out, err, rc = _adb(args + [path], serial=serial, timeout=300)
+    tmp_dir = None
+    badging_path = path
+    if path.lower().endswith(".apks"):
+        tmp_dir, apks = _extract_apks(path)
+        if not apks:
+            if tmp_dir:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            return {"ok": False, "error": "no installable APK inside the .apks bundle"}
+        args = (["install-multiple", "-r"] if len(apks) > 1 else ["install", "-r"]) + apks
+        badging_path = apks[0]     # read package name from the first (universal/base) split
+    else:
+        args = ["install", "-r", path]
+    try:
+        out, err, rc = _adb(args, serial=serial, timeout=300)
+        # Read package + launchable activity WHILE the extracted apk still exists
+        # (the tmp dir is removed in `finally`). aapt can't read a .apks archive,
+        # so for bundles this reads the extracted base/universal split instead.
+        pkg, act = apk_package(badging_path)
+    finally:
+        if tmp_dir:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
     msg = (out or "") + (err or "")
     if rc != 0 or "Failure" in msg or "Error" in msg:
         return {"ok": False, "error": (msg.strip() or "install failed")[:300]}
     # Auto-open the freshly installed app (best-effort — needs aapt to read the
     # package + launchable activity; silently skipped if aapt isn't available).
-    pkg, act = apk_package(path)
     launched = False
     if pkg:
         if act:
@@ -164,28 +205,54 @@ def adb_capture(serial, dest_dir):
     return {"ok": True, "path": path, "file": name}
 
 
+# Shell metacharacters that the DEVICE's /system/bin/sh would interpret. `adb
+# shell` re-joins its trailing args into one string and runs it through that
+# shell, so an un-escaped `;`/`$`/`|`/`&`/backtick in typed text would execute
+# ON THE PHONE (e.g. "hi; reboot"). Backslash-escaping neutralises injection and
+# lets the literal characters be typed. Space is handled separately (→ %s, which
+# `input text` maps back to a space).
+_INPUT_META = set('\\"\'`$&|;<>()!~^*?{}[]#%')
+
+
+def _input_text_arg(text):
+    """Escape user text for `adb shell input text` so it types literally and can't
+    inject a device-shell command."""
+    out = []
+    for ch in str(text):
+        if ch == " ":
+            out.append("%s")
+        elif ch in _INPUT_META:
+            out.append("\\" + ch)
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def adb_input(body):
     """Dispatch a remote-control gesture: tap / swipe / text / key / keyevent."""
     serial = body.get("serial") or None
     act = body.get("action")
-    if act == "tap":
-        _adb(["shell", "input", "tap", str(int(body["x"])), str(int(body["y"]))], serial=serial)
-    elif act == "swipe":
-        _adb(["shell", "input", "swipe", str(int(body["x1"])), str(int(body["y1"])),
-              str(int(body["x2"])), str(int(body["y2"])), str(int(body.get("ms", 120)))], serial=serial)
-    elif act == "text":
-        # adb input text wants %s for spaces and no shell metacharacters
-        t = str(body.get("text", "")).replace(" ", "%s")
-        _adb(["shell", "input", "text", t], serial=serial)
-    elif act == "key":
-        code = ADB_KEYS.get(str(body.get("key", "")).lower())
-        if code is None:
-            return {"ok": False, "error": f"unknown key {body.get('key')}"}
-        _adb(["shell", "input", "keyevent", str(code)], serial=serial)
-    elif act == "keyevent":
-        _adb(["shell", "input", "keyevent", str(int(body["code"]))], serial=serial)
-    else:
-        return {"ok": False, "error": f"unknown action {act}"}
+    try:
+        if act == "tap":
+            _adb(["shell", "input", "tap", str(int(body["x"])), str(int(body["y"]))], serial=serial)
+        elif act == "swipe":
+            _adb(["shell", "input", "swipe", str(int(body["x1"])), str(int(body["y1"])),
+                  str(int(body["x2"])), str(int(body["y2"])), str(int(body.get("ms", 120)))], serial=serial)
+        elif act == "text":
+            t = _input_text_arg(body.get("text", ""))
+            if t:
+                _adb(["shell", "input", "text", t], serial=serial)
+        elif act == "key":
+            code = ADB_KEYS.get(str(body.get("key", "")).lower())
+            if code is None:
+                return {"ok": False, "error": f"unknown key {body.get('key')}"}
+            _adb(["shell", "input", "keyevent", str(code)], serial=serial)
+        elif act == "keyevent":
+            _adb(["shell", "input", "keyevent", str(int(body["code"]))], serial=serial)
+        else:
+            return {"ok": False, "error": f"unknown action {act}"}
+    except (KeyError, ValueError, TypeError):
+        return {"ok": False, "error": f"invalid/missing coordinates for {act}"}
     return {"ok": True}
 
 
@@ -292,6 +359,16 @@ def adb_tcpip(serial):
 # services`, run `adb pair <addr> <password>`, then connect to the device's
 # `_adb-tls-connect._tcp`. No typing an IP/code by hand.
 _QR = {"name": None, "password": None, "paired": False, "host": None}
+_QR_LOCK = threading.Lock()   # ThreadingHTTPServer → serialize overlapping QR sessions
+
+
+def _host_of(addr):
+    """Host part of an mDNS `addr`, handling IPv4 `ip:port` and bracketed IPv6
+    `[fe80::1]:port` (a plain `rsplit(':',1)` would mangle the latter)."""
+    addr = (addr or "").strip()
+    if addr.startswith("["):
+        return addr[1:].split("]", 1)[0]
+    return addr.rsplit(":", 1)[0] if ":" in addr else addr
 
 
 def _qr_svg(payload):
@@ -324,7 +401,8 @@ def adb_qr_start():
         return {"ok": False, "error": "adb not found (set it in Config / Paths)"}
     name = "AppPreview-" + secrets.token_hex(3)
     password = "%06d" % secrets.randbelow(1000000)
-    _QR.update(name=name, password=password, paired=False, host=None)
+    with _QR_LOCK:
+        _QR.update(name=name, password=password, paired=False, host=None)
     payload = "WIFI:T:ADB;S:%s;P:%s;;" % (name, password)
     svg = _qr_svg(payload)
     return {"ok": True, "payload": payload, "name": name, "svg": svg, "needSegno": not svg,
@@ -335,22 +413,28 @@ def adb_qr_start():
 def adb_qr_poll():
     """Poll mDNS for the scanned pairing service → pair → connect. The frontend
     calls this on a timer after showing the QR until it returns connected:true."""
-    if not _QR.get("name"):
+    with _QR_LOCK:
+        session = dict(_QR)
+    if not session.get("name"):
         return {"ok": False, "error": "no QR session — press the QR button again"}
     svcs = _mdns_services()
-    if not _QR["paired"]:
-        pairing = next((s for s in svcs if "pairing" in s["type"] and s["name"] == _QR["name"]), None)
+    if not session["paired"]:
+        pairing = next((s for s in svcs if "pairing" in s["type"] and s["name"] == session["name"]), None)
         if not pairing:
             return {"ok": True, "waiting": "scan"}        # phone hasn't scanned yet
-        out, err, _ = _adb(["pair", pairing["addr"], _QR["password"]], timeout=25)
+        out, err, _ = _adb(["pair", pairing["addr"], session["password"]], timeout=25)
         msg = ((out or "") + (err or "")).strip()
         if "successfully paired" not in msg.lower():
             return {"ok": False, "error": msg[:200] or "pair failed"}
-        _QR["paired"] = True
-        _QR["host"] = pairing["addr"].rsplit(":", 1)[0]   # match the connect svc by host
+        session["paired"] = True
+        session["host"] = _host_of(pairing["addr"])   # match the connect svc by host
+        with _QR_LOCK:
+            if _QR.get("name") == session["name"]:    # still the same session
+                _QR["paired"] = True
+                _QR["host"] = session["host"]
     # Paired → connect to the device's connect service (same host if we can tell).
     conn = next((s for s in svcs if "connect" in s["type"]
-                 and (not _QR["host"] or s["addr"].startswith(_QR["host"] + ":"))), None)
+                 and (not session["host"] or _host_of(s["addr"]) == session["host"])), None)
     if not conn:
         return {"ok": True, "paired": True, "waiting": "connect"}   # adbd re-advertising
     c = adb_connect(conn["addr"])
@@ -419,3 +503,19 @@ def run_emulator(args, timeout=15):
     """Run the emulator CLI (separate from _adb since it's a different binary)."""
     p = subprocess.run([emulator_bin()] + list(args), capture_output=True, timeout=timeout)
     return p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace"), p.returncode
+
+
+def _cleanup_children():
+    """Terminate scrcpy/emulator children we launched so quitting the app doesn't
+    leave orphaned windows/emulators. `start_new_session` is a POSIX-only detach
+    (a no-op on Windows), so on Windows this is the only thing that stops them."""
+    for procs in (_SCRCPY_PROCS, _AVD_PROCS):
+        for p in list(procs.values()):
+            try:
+                if p and p.poll() is None:
+                    p.terminate()
+            except Exception:
+                pass
+
+
+atexit.register(_cleanup_children)

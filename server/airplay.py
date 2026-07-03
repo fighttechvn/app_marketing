@@ -10,7 +10,7 @@ device, so this module is a *controller* — it starts/stops the UxPlay receiver
 reports connection status from its log, and screenshots for the listing workflow.
 For tap/swipe control use the WDA tab instead.
 """
-import os, sys, time, socket, signal, tempfile, subprocess
+import os, sys, time, socket, signal, tempfile, subprocess, atexit
 from .util import find_bin, have, run
 from . import config
 
@@ -121,18 +121,29 @@ def _ascii_name(s):
     return out or "AppPreview"
 
 
-def _local_ips():
-    """This machine's LAN IPs, shown in the connect hint (which receiver to pick)."""
-    ips = []
-    try:  # primary route IP (UDP connect trick — sends no traffic)
+def _primary_ip():
+    """The IPv4 of the interface holding the default route — i.e. the LAN the
+    iPhone is on and the address it must be able to reach. The UDP-connect trick
+    sends no traffic; the kernel just picks the egress interface."""
+    try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80)); ips.append(s.getsockname()[0]); s.close()
+        s.connect(("8.8.8.8", 80)); ip = s.getsockname()[0]; s.close()
+        return ip
     except Exception:
-        pass
+        return ""
+
+
+def _local_ips():
+    """This machine's real LAN IPv4s, best-first: the default-route IP (what the
+    iPhone's Screen Mirroring must reach) leads. Excludes loopback and 169.254.*
+    (APIPA/link-local — never reachable). A WSL/Hyper-V/VPN NAT address (e.g.
+    172.x) can still follow the primary, but never displaces it."""
+    primary = _primary_ip()
+    ips = [primary] if primary else []
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
             ip = info[4][0]
-            if ip not in ips and not ip.startswith("127."):
+            if ip not in ips and not ip.startswith("127.") and not ip.startswith("169.254."):
                 ips.append(ip)
     except Exception:
         pass
@@ -180,6 +191,8 @@ def airplay_status():
     """Receiver health for the UI: tools present, listening, connection state."""
     lines = _tail(_LOG)
     running = _running()
+    ips = _local_ips()
+    primary = ips[0] if ips else ""
     return {"ok": True,
             "available": available(),
             "gstreamer": _gst_present(),
@@ -188,7 +201,13 @@ def airplay_status():
             "name": _UX["name"] or "",
             "defaultName": _default_name(),
             "port": _UX.get("port"),
-            "ips": _local_ips(),
+            "ips": ips,
+            "primaryIp": primary,
+            # More than one real LAN IP → extra adapters (WSL/Hyper-V/VPN). This
+            # build of uxplay has no interface selector, so its mdnsd may advertise
+            # the wrong address; the UI warns the user to disable extras if the
+            # iPhone can't find/connect to the receiver.
+            "multiNet": len(ips) > 1,
             "uxplay": uxplay_bin(),
             "bundled": bool(_bundled_uxplay()),
             "log": lines[-8:],
@@ -221,6 +240,7 @@ def airplay_start(opts=None):
     # `stdbuf -oL` forces line buffering so status() sees them promptly (POSIX only).
     if sys.platform != "win32" and have("stdbuf"):
         cmd = ["stdbuf", "-oL", "-eL"] + cmd
+    logf = None
     try:
         logf = open(_LOG, "wb")
         # start_new_session so a Ctrl-C / parent exit doesn't take the receiver with
@@ -232,6 +252,12 @@ def airplay_start(opts=None):
         _UX["port"] = port
     except Exception as e:
         return {"ok": False, "error": "failed to launch uxplay: %s" % str(e)[:200]}
+    finally:
+        # The child dup'd the fd; close the parent's copy so we don't leak a handle
+        # on every start (Windows also keeps the file locked until it's closed).
+        if logf:
+            try: logf.close()
+            except Exception: pass
     time.sleep(0.8)
     if _UX["proc"].poll() is not None:        # died immediately → bad sink / missing plugin
         return {"ok": False, "error": "uxplay exited on launch",
@@ -270,7 +296,13 @@ def airplay_open_mjpeg():
     port = _UX.get("port")
     if not (_running() and port):
         raise RuntimeError("receiver not running")
-    return socket.create_connection((_MJPEG_HOST, port), timeout=10)
+    s = socket.create_connection((_MJPEG_HOST, port), timeout=10)
+    # 10s applied only to establishing the connection. Clear it for the long-lived
+    # browser relay: frames legitimately pause (iPhone locks, mirroring paused) and
+    # a recv timeout would kill the relay → the <img> flaps into a reconnect loop.
+    # _grab_frame() sets its own short timeout for one-shot captures.
+    s.settimeout(None)
+    return s
 
 
 def _grab_frame(timeout=8):
@@ -319,3 +351,18 @@ def airplay_capture(dest_dir):
     with open(path, "wb") as fp:
         fp.write(data)
     return {"ok": True, "path": path, "file": name}
+
+
+# Kill the UxPlay receiver when the server process exits so quitting the desktop
+# app doesn't leave an orphan uxplay.exe advertising a dead receiver on mDNS and
+# holding its ports (only reachable via Task Manager otherwise). Best-effort — a
+# hard TerminateProcess won't run this, but a normal exit / SIGTERM will.
+def _cleanup_uxplay():
+    try:
+        if _running():
+            airplay_stop()
+    except Exception:
+        pass
+
+
+atexit.register(_cleanup_uxplay)

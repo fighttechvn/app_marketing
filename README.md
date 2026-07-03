@@ -40,6 +40,46 @@ It prints every route:
 
 The server binds **127.0.0.1 only** because `/api/*` exposes store credentials.
 
+## AI agent prompt (setup, run & load both stores)
+
+Hand the whole flow — clone, run on localhost, and pull **text + screenshots**
+from **App Store Connect + Google Play** — to an AI coding agent (Claude Code, etc.).
+Copy-paste this:
+
+```text
+Repo: https://github.com/fighttechvn/app_marketing
+
+Goal: run the App Preview Playground on localhost and load real listing TEXT +
+SCREENSHOTS from BOTH stores (App Store Connect + Google Play).
+
+1. Clone the repo (skip if present) and cd in.
+2. Run `./run.sh` — it seeds .env from .env.example and serves on
+   http://localhost:8092 (/, /playground/, /docs/, /api/*). Only python3 is required.
+3. Confirm it's up: `curl -s http://localhost:8092/playground/ | head`.
+4. Ask me for store credentials, then set them in .env:
+   - App Store Connect: ASC_KEY_ID, ASC_ISSUER_ID, BUNDLE_ID, and either
+     ASC_KEY_P8 (path) or ASC_KEY_P8_B64 (base64 of the .p8, one line).
+   - Google Play: PLAYSTORE_PACKAGE_NAME, and either
+     PLAYSTORE_SERVICE_ACCOUNT_JSON (path) or ..._B64 (base64 of the JSON).
+   Restart run.sh after editing .env.
+5. Load both stores: `curl -s http://localhost:8092/api/sync | python3 -m json.tool`
+   → {"ok":true,"appstore":{"iphone":N,"ipad":N},"googleplay":{"phone":N},...}.
+6. Verify: TEXT in listing-current.json (per-locale App Store + Google Play fields),
+   SCREENSHOTS in assets/current/ (iphone-*.png, ipad-*.png, phone-*.png).
+   Report the URL, the /api/sync JSON, and the file/screenshot counts.
+
+Notes: server binds 127.0.0.1 only (creds under /api/*). /api/sync 500 "missing
+ASC_KEY_ID…" = incomplete .env creds; 401/403 = key lacks access or wrong
+BUNDLE_ID / PLAYSTORE_PACKAGE_NAME (use "Test keys" to isolate). /docs/ 404 is
+harmless for Sync.
+```
+
+For a no-credentials smoke test, tell the agent to run `./run.sh`, open
+`/playground/`, and use **Try template** (New variant) — no API keys needed.
+The reusable Claude Code skill lives in
+[.claude/skills/store-playground/](.claude/skills/store-playground/) (`SKILL.md` +
+`AGENT_PROMPT.md`).
+
 ## Assets
 
 | Folder | Variant | Filled by |

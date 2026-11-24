@@ -1,0 +1,18 @@
+[
+ {
+  "id": "doodlekit",
+  "name": "Doodle Kit: Draw & Sketch",
+  "package": "com.doodlekit.drawsketch",
+  "landing": "https://doodlekit.web.app",
+  "short": "Draw, sketch and color on a blank canvas with pencils, markers and a bucket.",
+  "icon": "doodlekit/assets/icon.png"
+ },
+ {
+  "id": "petalbook",
+  "name": "Petal: Mandala Coloring",
+  "package": "com.petalbook.mandalacoloring",
+  "landing": "https://petal-mandala.web.app",
+  "short": "Relaxing mandala and flower coloring pages with a paint bucket and brushes.",
+  "icon": "petalbook/assets/icon.png"
+ }
+]

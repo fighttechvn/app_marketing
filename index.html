@@ -2615,6 +2615,12 @@ window.__dragHint = function(show){
   // Esc closes the panel (unless an editor/lightbox owns Escape already)
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&panel.classList.contains('open')&&cur) closePanel(); });
 })();
+// ?store=googleplay | appstore opens that store's view first (shared preview links).
+try{
+  const want=new URLSearchParams(location.search).get('store');
+  const btn=want&&document.querySelector(`#storeSeg button[data-store="${want}"]`);
+  if(btn){ store=want; document.querySelectorAll('#storeSeg button').forEach(x=>x.classList.toggle('active',x===btn)); }
+}catch(_){}
 loadVariant('new');
 </script>
 </body>

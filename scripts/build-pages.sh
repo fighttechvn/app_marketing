@@ -22,6 +22,18 @@ cp -R docs/dist "$OUT/docs"
 cp index.html listing.json listing-current.json listing-template.json "$OUT/playground/"
 cp -R assets "$OUT/playground/assets"
 
+# 2b) Store previews of apps not yet in the stores → <base>/preview/<app>/
+#     Each previews/<app>/ holds its listing.json + assets/; it gets its own copy of the tool.
+if [ -d previews ]; then
+  mkdir -p "$OUT/preview"
+  cp previews/index.html previews/apps.json "$OUT/preview/"
+  for d in previews/*/; do
+    app=$(basename "$d")
+    cp -R "$d" "$OUT/preview/$app"
+    cp index.html listing-template.json "$OUT/preview/$app/"
+  done
+fi
+
 # 3) Landing → <base>/  (+ marketing assets)
 cp home.html "$OUT/index.html"
 cp -R screenshots "$OUT/screenshots"
